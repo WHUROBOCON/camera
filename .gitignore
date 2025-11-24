@@ -1,0 +1,9 @@
+build/
+workspace/dataset_yolo_seg/
+workspace/masks/
+workspace/temp_masks/
+workspace/model_generate/
+workspace/videos/
+workspace/labels_json/
+workspace/dataset_yolo_dete/
+workspace/images_2F/

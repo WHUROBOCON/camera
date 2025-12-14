@@ -97,12 +97,20 @@ target_link_libraries(one_eye PRIVATE
 )
 
 #--k4a_record_videos--
-add_executable(record_videos src/k4a_capture.cpp src/camera_k4a.cpp)
+add_executable(record_videos src/k4a_capture_videos.cpp src/camera_k4a.cpp)
 target_link_libraries(record_videos PRIVATE
 
     k4a::k4a
     ${COMMON_LIBS}
 )
+#--k4a_capture_pictures--
+add_executable(capture_images src/k4a_capture_images.cpp src/camera_k4a.cpp)
+target_link_libraries(capture_images PRIVATE
+
+    k4a::k4a
+    ${COMMON_LIBS}
+)
+
 
 # #---dynamic_rocog---
 # add_executable(dynamic_recog src/dynamic_recog.cpp src/grid_state.cpp src/myinfer.cpp src/yolo/yolo.cu src/camera_k4a.cpp)
@@ -204,3 +212,4 @@ if(BUILD_WITH_ROS)
     )
 
 endif()
+    

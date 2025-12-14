@@ -276,12 +276,24 @@ BoundingBox3D K4a::Value_Mask_to_Pcl(
         bbox.center.z /= valid_points;
 
         // 计算主方向（相机方向角度）
-        float X = bbox.center.x;
-        float Y = bbox.center.y;
-        float Z = bbox.center.z;
+        float Xc = bbox.center.x;
+        float Yc = bbox.center.y;
+        float Zc = bbox.center.z;
 
-        float yaw = atan2(X, Z);    // 左右角度
-        float pitch = atan2(-Y, Z); // 上下角度（负号修正坐标系）
+        // 相机 → 机器人坐标转换
+        // 变换矩阵 (参数)
+        float tx = 0.175f;
+        float ty = -0.32851f;
+        float tz = 0.701f;
+
+        // 旋转（roll = -90°）
+        bbox.center.x = 1 * Xc + 0 * Yc + 0 * Zc + tx;
+        bbox.center.y = 0 * Xc + 0 * Yc + 1 * Zc + ty;
+        bbox.center.z = 0 * Xc - 1 * Yc + 0 * Zc + tz;
+
+        // 用机器人坐标系计算角度
+        float yaw = atan2(bbox.center.x, bbox.center.z);    // 左右
+        float pitch = atan2(-bbox.center.y, bbox.center.z); // 上下
 
         bbox.principal_dir = cv::Vec3f(yaw, pitch, 0);
     }
@@ -461,4 +473,89 @@ void K4a::record_videos(const std::string &output_path_prefix, const std::string
 
     // 清理窗口（不处理 device 的关闭）
     cv::destroyWindow("K4A Manual Recorder");
+}
+void K4a::capture_images(const std::string &output_path_prefix,
+                         const std::string &obj)
+{
+    int folder_index = 0;     // 类别编号
+    int image_index = 0;      // 当前文件夹内图片编号
+
+    std::string current_folder;
+
+    auto update_folder = [&]() {
+        std::ostringstream oss;
+        std::string base = output_path_prefix;
+        if (base.back() != '/' && base.back() != '\\')
+            base += '/';
+
+        oss << base << obj << "_" << folder_index;
+        current_folder = oss.str();
+
+        // 创建文件夹（若已存在则忽略）
+        std::string cmd = "mkdir -p " + current_folder;
+        system(cmd.c_str());
+
+        image_index = 0;
+
+        std::cout << "[INFO] 切换到新类别文件夹: "
+                  << current_folder << std::endl;
+    };
+
+    update_folder();
+
+    std::cout << "[INFO] 按 'c' 拍照保存，'n' 切换下一个类别文件夹，Ctrl+C 退出程序\n";
+
+    while (true)
+    {
+        // 获取一帧
+        if (!device.get_capture(&capture, std::chrono::milliseconds(1000)))
+            continue;
+
+        k4a::image image_k4a_color = capture.get_color_image();
+        if (!image_k4a_color.handle())
+            continue;
+
+        cv::Mat frame_rgba(image_k4a_color.get_height_pixels(),
+                           image_k4a_color.get_width_pixels(),
+                           CV_8UC4,
+                           (void *)image_k4a_color.get_buffer());
+
+        cv::Mat frame_bgr;
+        cv::cvtColor(frame_rgba, frame_bgr, cv::COLOR_BGRA2BGR);
+
+        // 显示画面
+        cv::imshow("K4A Image Capture", frame_bgr);
+
+        char key = (char)cv::waitKey(1);
+
+        if (key == 'c')
+        {
+            std::ostringstream oss;
+            oss << current_folder << "/"
+                << std::setw(6) << std::setfill('0')
+                << image_index << ".png";
+
+            std::string filename = oss.str();
+
+            if (cv::imwrite(filename, frame_bgr))
+            {
+                std::cout << "[INFO] 保存图片: " << filename << std::endl;
+                image_index++;
+            }
+            else
+            {
+                std::cerr << "[ERROR] 图片保存失败: " << filename << std::endl;
+            }
+        }
+        else if (key == 'n')
+        {
+            folder_index++;
+            update_folder();
+        }
+
+        // 降低 CPU 占用
+        usleep(1000);
+    }
+
+    cv::destroyWindow("K4A Image Capture");
 }

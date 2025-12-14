@@ -3,7 +3,6 @@
 #include <main.hpp>
 #include "yolo.hpp"
 
-
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -19,7 +18,6 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/eigen.h>
 
-
 #include <k4a/k4a.hpp>
 #include <k4a/k4a.h>
 
@@ -27,7 +25,6 @@
 #include <unistd.h>
 #include <memory>
 #include <string>
-
 
 #define COUT_RED_START std::cout << "\033[1;31m";
 #define COUT_GREEN_START std::cout << "\033[1;32m";
@@ -82,11 +79,13 @@ public:
 
     void Save_Image(int amount, std::string output_dir);
 
-    void get_intrinsics(float &fx ,float &fy ,float &cx ,float &cy);
+    void get_intrinsics(float &fx, float &fy, float &cx, float &cy);
 
-    void record_videos(const std::string &output_path_prefix,const std::string &obj);
+    void record_videos(const std::string &output_path_prefix, const std::string &obj);
 
-    K4a()
+    void capture_images(const std::string &output_path_prefix,
+                             const std::string &obj);
+        K4a()
     {
         Installed_Count();
         if (Open())

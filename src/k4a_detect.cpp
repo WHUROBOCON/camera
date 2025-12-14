@@ -48,7 +48,7 @@ int main(
         K4a k4a_device; // 类里是构造函数，自动调用configuration函数
         // k4a_device.Configuration(); //不要有这一句，会报错
         Yolo yolo; // 实例化类
-        std::string engine_path = "/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_full2/weights/best.engine";
+        std::string engine_path = "/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_full_new/weights/best.engine";
         yolo::BoxArray detections;
 
         bool first_cloud = true;                                                       // 第一次生成点云
@@ -69,9 +69,9 @@ int main(
             k4a_device.Image_to_Cv(color_image, depth_image); // 获取彩色和深度图像
 
             cv::cvtColor(color_image, gray, cv::COLOR_BGR2GRAY);
-            cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
-            clahe->setClipLimit(2.0);
-            clahe->apply(gray, gray);
+            // cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+            // clahe->setClipLimit(2.0);
+            // clahe->apply(gray, gray);
             cv::cvtColor(gray, gray3, cv::COLOR_GRAY2BGR);
 
             yolo.Single_Inference(gray3, detections);

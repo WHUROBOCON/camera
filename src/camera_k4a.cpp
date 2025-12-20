@@ -80,7 +80,6 @@ void K4a::Image_to_Cv(cv::Mat &image_cv_color, cv::Mat &image_cv_depth)
         // image_cv_depth.convertTo(image_cv_depth, CV_8U);
     }
 }
-
 // get color image from device and convert to cv::Mat
 void K4a::Color_to_Cv(cv::Mat &image_cv_color)
 {
@@ -91,7 +90,6 @@ void K4a::Color_to_Cv(cv::Mat &image_cv_color)
         cv::cvtColor(image_cv_color, image_cv_color, cv::COLOR_BGRA2BGR);
     }
 }
-
 //   get depth image from device and convert to cv::Mat
 void K4a::Depth_to_Cv(cv::Mat &image_cv_depth)
 {
@@ -134,105 +132,87 @@ void K4a::Save_Image(int amount, std::string output_dir)
     }
 }
 
-// draw color image with mask and label
-void K4a::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray &objs)
+CameraIntrinsics K4a::get_color_intrinsics() const
 {
-    // Cycle through all objectives, frames, and labels
-    for (auto &obj : objs)
-    {
-        if (obj.left >= 0 && obj.right < image_cv_color.cols && obj.top >= 0 && obj.bottom <= image_cv_color.rows)
-        {
-            uint8_t b, g, r;
-            std::tie(b, g, r) = yolo::random_color(obj.class_label);
-            cv::rectangle(image_cv_color, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
-                          cv::Scalar(b, g, r), 5);
-            auto name = labels[obj.class_label];
-            auto caption = cv::format("%s %.2f", name, obj.confidence);
-            int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_color, cv::Point(obj.left - 3, obj.top - 33),
-                          cv::Point(obj.left + width, obj.top), cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_color, caption, cv::Point(obj.left, obj.top - 5), 0, 1, cv::Scalar::all(0), 2, 16);
-            if (obj.seg && obj.seg->data != nullptr)
-            {
-                if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_color.cols &&
-                    obj.top >= 0 && obj.seg->height >= 0 && obj.top + obj.seg->height <= image_cv_color.rows)
-                {
-
-                    cv::Mat mask = cv::Mat(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
-                    mask.convertTo(mask, CV_8UC1);
-
-                    // Ensure mask dimensions are valid before resizing
-                    int mask_width = std::max(1, static_cast<int>(obj.right - obj.left));
-                    int mask_height = std::max(1, static_cast<int>(obj.bottom - obj.top));
-
-                    // Resize mask to fit the bounding box
-                    cv::resize(mask, mask, cv::Size(mask_width, mask_height), 0, 0, cv::INTER_LINEAR);
-                    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR); // Convert to 3-channel image
-
-                    // Ensure that the image region and mask have the same size
-                    cv::Mat region = image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height));
-                    cv::addWeighted(region, 0.5, mask, 0.5, 0.0, region); // Blend mask onto the image region
-
-                    mask.copyTo(image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height)));
-                }
-            }
-        }
-    }
+    const auto &c = k4aCalibration.color_camera_calibration;
+    return {
+        c.intrinsics.parameters.param.fx,
+        c.intrinsics.parameters.param.fy,
+        c.intrinsics.parameters.param.cx,
+        c.intrinsics.parameters.param.cy};
 }
 
+CameraIntrinsics K4a::get_depth_intrinsics() const
+{
+    const auto &d = k4aCalibration.depth_camera_calibration;
+    return {
+        d.intrinsics.parameters.param.fx,
+        d.intrinsics.parameters.param.fy,
+        d.intrinsics.parameters.param.cx,
+        d.intrinsics.parameters.param.cy};
+}
+
+// draw color image with mask and label
+void K4a::Color_With_Mask(cv::Mat &image_cv_color, const yolo::BoxArray &objs)
+{
+    // Cycle through all objectives, frames, and labels
+    vision::draw_yolo_detections(image_cv_color,objs);
+}
+
+void K4a::Depth_With_Mask(cv::Mat &image_cv_depth, const yolo::BoxArray &objs)
+{
+    vision::draw_yolo_detections(image_cv_depth, objs);
+}
 // get point cloud from depth image
-BoundingBox3D K4a::Value_Mask_to_Pcl(
+BoundingBox3D K4a::Value_Block_to_Pcl(
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
     const cv::Mat &depth_image,
-    yolo::BoxArray objs)
+    const FinalBlockResult &block)
 {
     cloud->clear();
+
     BoundingBox3D bbox;
     bbox.min_pt = cv::Point3f(FLT_MAX, FLT_MAX, FLT_MAX);
     bbox.max_pt = cv::Point3f(-FLT_MAX, -FLT_MAX, -FLT_MAX);
     bbox.center = cv::Point3f(0, 0, 0);
     bbox.principal_dir = cv::Vec3f(0, 0, 0);
-    bbox.cls_name = "unknow";
+
+    bbox.cls_ID = -1;
+    bbox.cls_name = "unknown";
+
+    //Block 语义
+    bbox.cls_ID = static_cast<int>(block.block_class);
+    bbox.cls_name = block_class_name(block.block_class);
+
+    // 最终 block 对应的 box
+    const yolo::Box &obj = block.detection;
 
     size_t valid_points = 0;
 
     // Azure Kinect depth 单位是 mm，这里转成 m
     const float depth_scale = 0.001f;
 
-    // 直接取 K4A 深度相机内参
-    const k4a_calibration_camera_t &depth_intrinsics = k4aCalibration.depth_camera_calibration;
-    float fx = depth_intrinsics.intrinsics.parameters.param.fx;
-    float fy = depth_intrinsics.intrinsics.parameters.param.fy;
-    float cx = depth_intrinsics.intrinsics.parameters.param.cx;
-    float cy = depth_intrinsics.intrinsics.parameters.param.cy;
+    // 获取深度相机内参
+    CameraIntrinsics intr = get_depth_intrinsics();
+    const float fx = intr.fx;
+    const float fy = intr.fy;
+    const float cx = intr.cx;
+    const float cy = intr.cy;
 
-    if (objs.empty())
-    {
-        return bbox;
-    }
-    // 只处理置信度最高的物体
-    auto best_iter = std::max_element(objs.begin(), objs.end(),
-                                      [](const auto &a, const auto &b)
-                                      {
-                                          return a.confidence < b.confidence;
-                                      });
-
-    const auto &obj = *best_iter;
-    bbox.cls_name = labels[obj.class_label]; // YOLO 推理类别
-    bbox.cls_ID = obj.class_label;
-
-    // 遍历检测框内的所有像素
+    // 遍历 box 内像素 
     for (int py = obj.top; py < obj.bottom; ++py)
     {
         for (int px = obj.left; px < obj.right; ++px)
         {
-            // 边界检查
-            if (px < 0 || px >= depth_image.cols || py < 0 || py >= depth_image.rows)
+            if (px < 0 || px >= depth_image.cols ||
+                py < 0 || py >= depth_image.rows)
             {
                 continue;
             }
 
-            float depth_value = depth_image.at<uint16_t>(py, px) * depth_scale;
+            float depth_value =
+                depth_image.at<uint16_t>(py, px) * depth_scale;
+
             if (depth_value <= 0.0f || depth_value > 3.0f)
             {
                 continue;
@@ -243,10 +223,9 @@ BoundingBox3D K4a::Value_Mask_to_Pcl(
             float Y = -(py - cy) * depth_value / fy;
             float Z = depth_value;
 
-            // 添加到点云
             cloud->points.emplace_back(X, Y, Z);
 
-            // 更新边界框
+            // 更新 3D 包围盒
             bbox.min_pt.x = std::min(bbox.min_pt.x, X);
             bbox.min_pt.y = std::min(bbox.min_pt.y, Y);
             bbox.min_pt.z = std::min(bbox.min_pt.z, Z);
@@ -255,132 +234,92 @@ BoundingBox3D K4a::Value_Mask_to_Pcl(
             bbox.max_pt.y = std::max(bbox.max_pt.y, Y);
             bbox.max_pt.z = std::max(bbox.max_pt.z, Z);
 
-            // 累加中心点坐标
             bbox.center.x += X;
             bbox.center.y += Y;
             bbox.center.z += Z;
+
             valid_points++;
         }
     }
 
-    // 设置点云属性
     cloud->width = cloud->points.size();
     cloud->height = 1;
     cloud->is_dense = false;
 
-    // 计算中心点
-    if (valid_points > 0)
+    if (valid_points == 0)
     {
-        bbox.center.x /= valid_points;
-        bbox.center.y /= valid_points;
-        bbox.center.z /= valid_points;
-
-        // 计算主方向（相机方向角度）
-        float Xc = bbox.center.x;
-        float Yc = bbox.center.y;
-        float Zc = bbox.center.z;
-
-        // 相机 → 机器人坐标转换
-        // 变换矩阵 (参数)
-        float tx = 0.175f;
-        float ty = -0.32851f;
-        float tz = 0.701f;
-
-        // 旋转（roll = -90°）
-        bbox.center.x = 1 * Xc + 0 * Yc + 0 * Zc + tx;
-        bbox.center.y = 0 * Xc + 0 * Yc + 1 * Zc + ty;
-        bbox.center.z = 0 * Xc - 1 * Yc + 0 * Zc + tz;
-
-        // 用机器人坐标系计算角度
-        float yaw = atan2(bbox.center.x, bbox.center.z);    // 左右
-        float pitch = atan2(-bbox.center.y, bbox.center.z); // 上下
-
-        bbox.principal_dir = cv::Vec3f(yaw, pitch, 0);
+        return bbox;
     }
+
+    // 平均中心 
+    bbox.center.x /= valid_points;
+    bbox.center.y /= valid_points;
+    bbox.center.z /= valid_points;
+
+    //坐标变换
+    float Xc = bbox.center.x;
+    float Yc = bbox.center.y;
+    float Zc = bbox.center.z;
+
+    float tx = 0.175f;
+    float ty = -0.32851f;
+    float tz = 0.701f;
+
+    bbox.center.x = 1 * Xc + 0 * Yc + 0 * Zc + tx;
+    bbox.center.y = 0 * Xc + 0 * Yc + 1 * Zc + ty;
+    bbox.center.z = 0 * Xc - 1 * Yc + 0 * Zc + tz;
+
+    float yaw = atan2(bbox.center.x, bbox.center.z);
+    float pitch = atan2(-bbox.center.y, bbox.center.z);
+
+    bbox.principal_dir = cv::Vec3f(yaw, pitch, 0);
 
     return bbox;
 }
-void K4a::Depth_With_Mask(cv::Mat &image_cv_depth, yolo::BoxArray &objs)
-{
-    for (auto &obj : objs)
-    { // 检查目标框是否在深度图范围内
-        if (obj.left >= 0 && obj.right < image_cv_depth.cols && obj.top >= 0 && obj.bottom <= image_cv_depth.rows)
-        { // 随机颜色
-            uint8_t b, g, r;
-            std::tie(b, g, r) = yolo ::random_color(obj.class_label);
-            // 画矩形框
-            cv::rectangle(image_cv_depth,
-                          cv::Point(obj.left, obj.top),
-                          cv::Point(obj.right, obj.bottom),
-                          cv::Scalar(b, g, r), 2);
-            // 类别名称+置信度
-            auto name = labels[obj.class_label];
-            auto caption = cv::format("%s %.2f", name, obj.confidence);
 
-            // 放文字
-            int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_depth,
-                          cv::Point(obj.left - 3, obj.top - 33),
-                          cv::Point(obj.left + width, obj.top),
-                          cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_depth, caption,
-                        cv::Point(obj.left, obj.top - 5),
-                        0, 1,
-                        cv::Scalar::all(0), 2, 16);
-
-            // 画掩码
-            if (obj.seg)
-            {
-                if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_depth.cols &&
-                    obj.top >= 0 && obj.seg->height >= 0 &&
-                    obj.top + obj.seg->height <= image_cv_depth.rows)
-                {
-                    // 掩码
-                    cv::Mat mask = cv::Mat(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
-                    mask.convertTo(mask, CV_8UC1);
-                    cv::resize(mask, mask, cv::Size(obj.right - obj.left, obj.bottom - obj.top), 0, 0, cv::INTER_LINEAR);
-
-                    // 将掩码转成 3 通道，以便与 ROI 融合（GPT generate)
-                    cv::Mat mask_color;
-                    cv::cvtColor(mask, mask_color, cv::COLOR_GRAY2BGR);
-
-                    cv::addWeighted(image_cv_depth(cv::Rect(obj.left, obj.top, obj.right - obj.left, obj.bottom - obj.top)), 1.0, mask, 1.0, 0.0, mask);
-                    mask.copyTo(image_cv_depth(cv::Rect(obj.left, obj.top, obj.right - obj.left, obj.bottom - obj.top)));
-                }
-            }
-        }
-    }
-}
-
-void K4a::Value_Depth_to_Pcl(pcl::PointCloud<pcl::PointXYZ> &cloud)
+void K4a::Value_Depth_to_Pcl(
+    const k4a::image &depth_to_color,
+    pcl::PointCloud<pcl::PointXYZ> &cloud)
 {
     cloud.clear();
-    uint16_t *depth_data = (uint16_t *)image_k4a_depth_to_color.get_buffer();
-    for (int v = 0; v < image_k4a_depth_to_color.get_height_pixels(); v += 9)
+
+    //  获取颜色相机内参（ depth 已对齐到 color）
+    CameraIntrinsics intr = get_color_intrinsics();
+    const float fx = intr.fx;
+    const float fy = intr.fy;
+    const float cx = intr.cx;
+    const float cy = intr.cy;
+
+    // 访问深度数据缓冲
+    const uint16_t *depth_data =
+        reinterpret_cast<const uint16_t *>(depth_to_color.get_buffer());
+
+    const int width = depth_to_color.get_width_pixels();
+    const int height = depth_to_color.get_height_pixels();
+
+    // 像素 → 相机坐标
+    for (int v = 0; v < height; v += 9)
     {
-        for (int u = 0; u < image_k4a_depth_to_color.get_width_pixels(); u += 9)
+        for (int u = 0; u < width; u += 9)
         {
-            float depth_value = static_cast<float>(depth_data[v * image_k4a_depth_to_color.get_width_pixels() + u] / 1000.0);
-            if (depth_value != 0)
-            {
-                float x = (u - color_intrinsics.intrinsics.parameters.param.cx) * depth_value / color_intrinsics.intrinsics.parameters.param.fx;
-                float y = (v - color_intrinsics.intrinsics.parameters.param.cy) * depth_value / color_intrinsics.intrinsics.parameters.param.fy;
-                float z = depth_value;
-                pcl::PointXYZ point(x, y, z);
-                cloud.push_back(point);
-            }
+            float depth_value =
+                depth_data[v * width + u] * 0.001f;
+
+            if (depth_value <= 0.0f)
+                continue;
+
+            float x = (u - cx) * depth_value / fx;
+            float y = (v - cy) * depth_value / fy;
+            float z = depth_value;
+
+            cloud.emplace_back(x, y, z);
         }
     }
-    std::cout << "Global PointCloud:" << cloud.size() << std::endl;
+
+    std::cout << "Global PointCloud: "
+              << cloud.size() << std::endl;
 }
-void K4a::get_intrinsics(float &fx, float &fy, float &cx, float &cy)
-{
-    k4a_calibration_camera_t calib = k4aCalibration.color_camera_calibration;
-    fx = calib.intrinsics.parameters.param.fx;
-    fy = calib.intrinsics.parameters.param.fy;
-    cx = calib.intrinsics.parameters.param.cx;
-    cy = calib.intrinsics.parameters.param.cy;
-}
+
 void K4a::record_videos(const std::string &output_path_prefix, const std::string &obj)
 {
     cv::VideoWriter writer;
@@ -477,12 +416,13 @@ void K4a::record_videos(const std::string &output_path_prefix, const std::string
 void K4a::capture_images(const std::string &output_path_prefix,
                          const std::string &obj)
 {
-    int folder_index = 0;     // 类别编号
-    int image_index = 0;      // 当前文件夹内图片编号
+    int folder_index = 0; // 类别编号
+    int image_index = 0;  // 当前文件夹内图片编号
 
     std::string current_folder;
 
-    auto update_folder = [&]() {
+    auto update_folder = [&]()
+    {
         std::ostringstream oss;
         std::string base = output_path_prefix;
         if (base.back() != '/' && base.back() != '\\')

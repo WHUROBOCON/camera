@@ -120,7 +120,7 @@ void RealSense::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray objs)
             std::tie(b, g, r) = yolo::random_color(obj.class_label);
             cv::rectangle(image_cv_color, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
                           cv::Scalar(b, g, r), 5);
-            auto name = labels[obj.class_label];
+            auto name = yolo_labels[obj.class_label];
             auto caption = cv::format("%s %.2f", name, obj.confidence);
             int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
             cv::rectangle(image_cv_color, cv::Point(obj.left - 3, obj.top - 33),
@@ -165,7 +165,7 @@ void RealSense::Depth_With_Mask(cv::Mat &image_cv_depth, yolo::BoxArray objs)
             std::tie(b, g, r) = yolo::random_color(obj.class_label);
             cv::rectangle(image_cv_depth, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
                           cv::Scalar(b, g, r), 5);
-            auto name = labels[obj.class_label];
+            auto name = yolo_labels[obj.class_label];
             auto caption = cv::format("%s %.2f", name, obj.confidence);
             int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
             cv::rectangle(image_cv_depth, cv::Point(obj.left - 3, obj.top - 33),

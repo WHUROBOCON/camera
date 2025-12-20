@@ -1,7 +1,8 @@
 #ifndef CAMREA_K4A_HPP
 #define CAMREA_K4A_HPP
-#include <main.hpp>
+#include "main.hpp"
 #include "yolo.hpp"
+#include "vision_draw.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -38,20 +39,40 @@
 #undef MIN_DISTANCE
 #define MIN_DISTANCE 2.0
 
+struct CameraIntrinsics
+{
+    float fx;
+    float fy;
+    float cx;
+    float cy;
+};
+enum class DetectionSemantic
+{
+    YOLO, // 原始 YOLO 输出
+    BLOCK // block_recognizer 融合结果
+};
+
 class K4a
 {
 private:
+    // 设备与SDK对象
     k4a::device device;
     k4a_device_configuration_t config;
     k4a::capture capture;
-    int device_count;
-    k4a::image image_k4a_color, image_k4a_depth, image_k4a_infrared;
-    k4a::image image_k4a_depth_to_color;
-    k4a_calibration_camera_t depth_intrinsics;
-    k4a_calibration_camera_t color_intrinsics;
+
+    // 标定 & 坐标变换
     k4a::calibration k4aCalibration;
     k4a::transformation k4aTransformation;
+
+    // 设备状态
     int frame_count = 0;
+    int device_count;
+
+    k4a_calibration_camera_t depth_intrinsics;
+    k4a_calibration_camera_t color_intrinsics;
+
+    k4a::image image_k4a_color, image_k4a_depth, image_k4a_infrared;
+    k4a::image image_k4a_depth_to_color;
 
 public:
     bool Open();
@@ -60,32 +81,38 @@ public:
 
     void Configuration();
 
+    CameraIntrinsics get_color_intrinsics() const;
+
+    CameraIntrinsics get_depth_intrinsics() const;
+
     void Image_to_Cv(cv::Mat &image_cv_color, cv::Mat &image_cv_depth);
 
     void Color_to_Cv(cv::Mat &iamge_cv_color);
 
     void Depth_to_Cv(cv::Mat &image_cv_depth);
 
-    void Color_With_Mask(cv::Mat &iamge_cv_color, yolo::BoxArray &objs);
+    void Color_With_Mask(cv::Mat &iamge_cv_color, const yolo::BoxArray &objs);
 
-    void Depth_With_Mask(cv::Mat &image_cv_depth, yolo::BoxArray &objs);
+    void Depth_With_Mask(cv::Mat &image_cv_depth, const yolo::BoxArray &objs);
 
-    BoundingBox3D Value_Mask_to_Pcl(
+    // 目标点云
+    BoundingBox3D Value_Block_to_Pcl(
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
         const cv::Mat &depth_image,
-        yolo::BoxArray objs);
+        const FinalBlockResult &block);
 
-    void Value_Depth_to_Pcl(pcl::PointCloud<pcl::PointXYZ> &cloud);
+    // 全局点云
+    void Value_Depth_to_Pcl(
+        const k4a::image &depth_to_color,
+        pcl::PointCloud<pcl::PointXYZ> &cloud);
 
     void Save_Image(int amount, std::string output_dir);
-
-    void get_intrinsics(float &fx, float &fy, float &cx, float &cy);
 
     void record_videos(const std::string &output_path_prefix, const std::string &obj);
 
     void capture_images(const std::string &output_path_prefix,
-                             const std::string &obj);
-        K4a()
+                        const std::string &obj);
+    K4a()
     {
         Installed_Count();
         if (Open())

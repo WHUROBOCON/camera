@@ -51,10 +51,6 @@ struct Image {
 
 typedef std::vector<Box> BoxArray;
 
-// [Preprocess]: 0.50736 ms
-// [Forward]: 3.96410 ms
-// [BoxDecode]: 0.12016 ms
-// [SegmentDecode]: 0.15610 ms
 class Infer {
  public:
   virtual BoxArray forward(const Image &image, void *stream = nullptr) = 0;

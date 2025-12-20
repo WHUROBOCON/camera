@@ -10,7 +10,7 @@ print("🔥 当前使用的 ultralytics 路径：", ultralytics.__file__)
 
 from ultralytics import YOLO
 # 配置
-
+                                
 workspace = "/home/li/camera_ws/src/camera_bridge/workspace"
 dataset_dir = os.path.join(workspace, "dataset_yolo_dete")      # 已划分好的 train/val
 model_out_dir = os.path.join(workspace, "model_generate")
@@ -20,20 +20,20 @@ yaml_path = os.path.join(dataset_dir, "data.yaml")    # YOLOv8 数据配置文�
 
 
 # 初始化模型
-model = YOLO("/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_full2/weights/best.pt")
+model = YOLO("yolov8m.pt")
 
 
 # 开始训练
 model.train(
     data=yaml_path,
-    epochs=100,          # 可根据需求调整
+    epochs=200,          # 可根据需求调整
     imgsz=640,           # 图片尺寸
     batch=8,             # 根据显存调整
     project=model_out_dir,
-    name="yolo_dete_full_new",  # 保存文件夹名
+    name="yolo_dete_20",  # 保存文件夹名
     workers=4,
     device=0,             # 如果想用CPU改为 'cpu'
     resume=False,
 )
 
-print(f"\n🎉 训练完成！模型保存在: {model_out_dir}/yolo_dete_full_new/")
+

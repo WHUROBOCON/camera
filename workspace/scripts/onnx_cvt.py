@@ -10,6 +10,6 @@ from ultralytics import YOLO
 print("🔥 使用的 ultralytics:", ultralytics.__file__)
 
 
-model = YOLO("/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_full_new/weights/best.pt")
+model = YOLO("/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete(block)/weights/best.pt")
 
 success = model.export(format="onnx", dynamic=True, simplify=True)

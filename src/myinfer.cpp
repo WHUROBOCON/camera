@@ -21,6 +21,15 @@ void Yolo::Yolov8_Seg_Enable(std::string &engine_seg)
   engine = engine_seg;
 }
 
+// set confidence threshold and nms threshold for detection
+void Yolo::Set_Confidence_Threshold(float conf_thres, float nms_thres)
+{
+  confidence_threshold = conf_thres;
+  nms_threshold = nms_thres;
+  std::cout << "Confidence threshold set to: " << confidence_threshold << std::endl;
+  std::cout << "NMS threshold set to: " << nms_threshold << std::endl;
+}
+
 // inference on single image(read from file)
 void Yolo::Single_Inference(std::string path)
 {
@@ -38,7 +47,7 @@ void Yolo::Single_Inference(std::string path)
     cv::rectangle(image, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
                   cv::Scalar(b, g, r), 5);
 
-    auto name = labels[obj.class_label];
+    auto name = yolo_labels[obj.class_label];
     auto caption = cv::format("%s %.2f", name, obj.confidence);
     int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
     cv::rectangle(image, cv::Point(obj.left - 3, obj.top - 33),
@@ -72,7 +81,7 @@ void Yolo::Single_Inference(cv::Mat &image)
     cv::rectangle(image, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
                   cv::Scalar(b, g, r), 5);
 
-    auto name = labels[obj.class_label];
+    auto name = yolo_labels[obj.class_label];
     auto caption = cv::format("%s %.2f", name, obj.confidence);
     int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
     cv::rectangle(image, cv::Point(obj.left - 3, obj.top - 33),
@@ -101,7 +110,7 @@ void Yolo::Single_Inference(cv::Mat &image, yolo::BoxArray &objs_out)
 {
   if (!load_flag)
   {
-    yolo = yolo::load(engine, type);
+    yolo = yolo::load(engine, type, confidence_threshold, nms_threshold);
     load_flag = 1;
   }
   if (yolo == nullptr)
@@ -110,24 +119,24 @@ void Yolo::Single_Inference(cv::Mat &image, yolo::BoxArray &objs_out)
     return;
   }
 
-  // // Ensure the input image is resized to the model's expected input size (e.g., 640x640)
-  // cv::Mat resized_image;
-  // cv::resize(image, resized_image, cv::Size(640, 640)); // Resize to model input size
-
   auto Start = std::chrono::system_clock::now();
 
+  // 主要推理在这一行执行
   auto objs = yolo->forward(cvimg(image));
 
   auto End = std::chrono::system_clock::now();
   auto Duration = std::chrono::duration_cast<std::chrono::microseconds>(End - Start);
-  std::cout << "Infer Duration: " << double(Duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den << "s" << std::endl;
 
-  // Print out detection results (for debugging)
+  // 调试输出
+#define DEBUG_YOLO 1 // 可通过注释本行禁用所有调试信息
+#ifdef DEBUG_YOLO
+  std::cout << "Infer Duration: " << double(Duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den << "s" << std::endl;
   std::cout << "Number of detections: " << objs.size() << std::endl;
   for (const auto &obj : objs)
   {
-    std::cout << "Detected object: " << obj.class_label << " with confidence " << obj.confidence << std::endl;
+    std::cout << "  Detected object: " << obj.class_label << " with confidence " << obj.confidence << std::endl;
   }
+#endif
 
   objs_out = objs;
 }
@@ -135,60 +144,10 @@ void Yolo::Single_Inference(cv::Mat &image, yolo::BoxArray &objs_out)
 Yolo::Yolo()
 {
   load_flag = 0;
+  confidence_threshold = 0.25f; // Default value
+  nms_threshold = 0.5f;         // Default value
 }
 
 Yolo::~Yolo()
 {
-}
-std::vector<GridDetection> Yolo::Inference_Grid(cv::Mat &image, bool draw_result) {
-    std::vector<GridDetection> grid_results;
-
-    // 确保模型已加载
-    if (!load_flag) {
-        yolo = yolo::load(engine, type);
-        load_flag = 1;
-    }
-    if (!yolo) {
-        std::cerr << "Failed to load engine" << std::endl;
-        return grid_results;
-    }
-
-    // 推理开始计时
-    auto Start = std::chrono::system_clock::now();
-    auto objs = yolo->forward(cvimg(image));
-    auto End = std::chrono::system_clock::now();
-    auto Duration = std::chrono::duration_cast<std::chrono::microseconds>(End - Start);
-    std::cout << "Infer Duration: " 
-              << double(Duration.count()) * std::chrono::microseconds::period::num /
-                 std::chrono::microseconds::period::den 
-              << "s" << std::endl;
-
-    int grid_rows = 4; // 网格行数
-    int grid_cols = 3; // 网格列数
-    int cell_h = image.rows / grid_rows;
-    int cell_w = image.cols / grid_cols;
-
-    for (auto &obj : objs) {
-        GridDetection det;
-        det.row = obj.top / cell_h;
-        det.col = obj.left / cell_w;
-        det.class_label = obj.class_label;
-        det.confidence = obj.confidence;
-        det.bbox = cv::Rect(obj.left, obj.top, obj.right - obj.left, obj.bottom - obj.top);
-
-        grid_results.push_back(det);
-
-        if (draw_result) {
-            cv::rectangle(image, det.bbox, cv::Scalar(0, 255, 0), 2);
-            cv::putText(image, std::to_string(det.class_label),
-                        cv::Point(det.bbox.x, det.bbox.y - 5),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
-        }
-
-        std::cout << "(" << det.row << ", " << det.col
-                  << ", class=" << det.class_label
-                  << ", conf=" << det.confidence << ")\n";
-    }
-
-    return grid_results;
 }

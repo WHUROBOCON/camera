@@ -81,30 +81,25 @@ target_link_libraries(rs_viewer PRIVATE
 
 
 #---K4A---
-add_executable(k4a_detect src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu)
+add_executable(k4a_detect src/k4a_detect.cpp src/camera_k4a.cpp
+    src/myinfer.cpp src/vision_draw.cpp src/block_recognizer.cpp src/yolo/yolo.cu)
 target_link_libraries(k4a_detect PRIVATE
 
     k4a::k4a
     ${COMMON_LIBS}
 )
 
-#---one_eye---
-add_executable(one_eye src/one_eye.cpp src/myinfer.cpp src/yolo/yolo.cu src/realsense.cpp)
-target_link_libraries(one_eye PRIVATE
 
-    realsense2::realsense2
-    ${COMMON_LIBS}
-)
 
 #--k4a_record_videos--
-add_executable(record_videos src/k4a_capture_videos.cpp src/camera_k4a.cpp)
+add_executable(record_videos src/k4a_capture_videos.cpp src/camera_k4a.cpp src/vision_draw.cpp)
 target_link_libraries(record_videos PRIVATE
 
     k4a::k4a
     ${COMMON_LIBS}
 )
 #--k4a_capture_pictures--
-add_executable(capture_images src/k4a_capture_images.cpp src/camera_k4a.cpp)
+add_executable(capture_images src/k4a_capture_images.cpp src/camera_k4a.cpp src/vision_draw.cpp)
 target_link_libraries(capture_images PRIVATE
 
     k4a::k4a
@@ -123,7 +118,8 @@ target_link_libraries(capture_images PRIVATE
 #             ROS可执行文件（仅在ROS下编译）
 if(BUILD_WITH_ROS)
     #---k4a_viewer_ros---
-    add_executable(k4a_detect_ros src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu)
+    add_executable(k4a_detect_ros src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp
+        src/vision_draw.cpp src/block_recognizer.cpp src/yolo/yolo.cu)
     target_compile_definitions(k4a_detect_ros PRIVATE BUILD_WITH_ROS)
     target_include_directories(k4a_detect_ros PRIVATE
         ${catkin_INCLUDE_DIRS}
@@ -164,52 +160,6 @@ if(BUILD_WITH_ROS)
     )
     install(TARGETS rs_viewer_ros RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
-    #---one_eye_ros---
-    add_executable(one_eye_ros src/one_eye.cpp src/myinfer.cpp src/yolo/yolo.cu src/realsense.cpp)
-    target_compile_definitions(one_eye_ros PRIVATE BUILD_WITH_ROS)
-    target_include_directories(one_eye_ros PRIVATE ${catkin_INCLUDE_DIRS} inc)
-    target_link_libraries(one_eye_ros PRIVATE
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        nvinfer
-        nvonnxparser
-        realsense2::realsense2
-        ${CUDA_LIBRARIES}
-        yolo
-        pthread
-        -lffi
-    )
-    install(TARGETS one_eye_ros RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
-    #---dynamic_recog---#
-    add_executable(dynamic_recog_ros src/dynamic_recog.cpp src/grid_state.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu src/ros_interface.cpp)
-    target_include_directories(dynamic_recog_ros PRIVATE
-        target_compile_definitions (dynamic_recog_ros PRIVATE BUILD_WITH_ROS)
-        ${catkin_INCLUDE_DIRS}
-        inc
-    )
-    target_link_libraries(dynamic_recog_ros PRIVATE
-        ${catkin_LIBRARIES}
-        ${OpenCV_LIBS}
-        ${PCL_LIBRARIES}
-        nvinfer
-        nvonnxparser
-        k4a::k4a
-        ${CUDA_LIBRARIES}
-        yolo
-        pthread
-        -lffi
-    )
-
-    install(TARGETS dynamic_recog_ros
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    )
-
-    add_executable(k4a_serial_node src/serial.cpp)
-    target_link_libraries(k4a_serial_node
-        ${catkin_LIBRARIES}
-    )
 
 endif()
-    

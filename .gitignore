@@ -6,4 +6,4 @@ workspace/model_generate/
 workspace/videos/
 workspace/labels_json/
 workspace/dataset_yolo_dete/
-workspace/images_2F/
+workspace/images/

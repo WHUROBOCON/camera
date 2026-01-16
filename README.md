@@ -24,17 +24,17 @@
         ```
         
     4. 运行
+        ROS 工作空间的环境配置命令，用于让 ROS 识别当前工作空间的自定义资源
         
         ```
-        # ROS 工作空间的环境配置命令，用于让 ROS 识别当前工作空间的自定义资源
         source devel/setup.bash
         ```
-        
+        ROS 节点检测包单独运行
         ```
-        #ROS 节点检测包单独运行
         rosrun camera_bridge k4a_detect_ros
-        # or 检测+串口信息传递的launch文件（USB转TTL提前插好）
+        ```
+        or 检测+串口信息传递的launch文件（USB转TTL提前插好）
+        ```
         roslaunch camera_bridge k4a_and_serial.launch
-        
         ```
         

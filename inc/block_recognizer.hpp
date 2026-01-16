@@ -36,6 +36,7 @@ struct FinalBlockResult
     yolo::Box detection;        // 单个最终 block
     BlockClass block_class;
     float confidence;
+    yolo::Box best_pattern;
 
     FinalBlockResult() : block_class(BlockClass::UNKNOWN), confidence(0.0f) {}
     

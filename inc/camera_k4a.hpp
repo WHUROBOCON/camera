@@ -99,7 +99,8 @@ public:
     BoundingBox3D Value_Block_to_Pcl(
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
         const cv::Mat &depth_image,
-        const FinalBlockResult &block);
+        const FinalBlockResult &objs
+    );
 
     // 全局点云
     void Value_Depth_to_Pcl(

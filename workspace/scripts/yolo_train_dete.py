@@ -20,8 +20,7 @@ yaml_path = os.path.join(dataset_dir, "data.yaml")    # YOLOv8 数据配置文�
 
 
 # 初始化模型
-model = YOLO("yolov8m.pt")
-
+model = YOLO("/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_block_new/weights/last.pt")
 
 # 开始训练
 model.train(
@@ -30,10 +29,10 @@ model.train(
     imgsz=640,           # 图片尺寸
     batch=8,             # 根据显存调整
     project=model_out_dir,
-    name="yolo_dete_20",  # 保存文件夹名
+    name="yolo_dete_block_new",  # 保存文件夹名
     workers=4,
     device=0,             # 如果想用CPU改为 'cpu'
-    resume=False,
+    resume=True,
 )
 
 

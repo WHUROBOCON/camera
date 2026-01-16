@@ -10,7 +10,7 @@ int main()
     K4a k4a_device;
  
 
-    k4a_device.capture_images("/home/li/camera_ws/src/camera_bridge/workspace/images","R2"); // 手动拍摄
+    k4a_device.capture_images("/home/li/camera_ws/src/camera_bridge/workspace/images","add"); // 手动拍摄
 
 
     return 0;

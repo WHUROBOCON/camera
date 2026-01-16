@@ -3,6 +3,7 @@
 #include "myinfer.hpp"
 #include <iostream>
 #include "utils.hpp"
+#include <pcl/features/moment_of_inertia_estimation.h>
 
 using namespace std;
 
@@ -156,18 +157,19 @@ CameraIntrinsics K4a::get_depth_intrinsics() const
 void K4a::Color_With_Mask(cv::Mat &image_cv_color, const yolo::BoxArray &objs)
 {
     // Cycle through all objectives, frames, and labels
-    vision::draw_yolo_detections(image_cv_color,objs);
+    vision::draw_yolo_detections(image_cv_color, objs);
 }
 
 void K4a::Depth_With_Mask(cv::Mat &image_cv_depth, const yolo::BoxArray &objs)
 {
     vision::draw_yolo_detections(image_cv_depth, objs);
 }
-// get point cloud from depth image
+
+// get obj's point cloud from depth image
 BoundingBox3D K4a::Value_Block_to_Pcl(
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
     const cv::Mat &depth_image,
-    const FinalBlockResult &block)
+    const FinalBlockResult &objs)
 {
     cloud->clear();
 
@@ -180,26 +182,30 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
     bbox.cls_ID = -1;
     bbox.cls_name = "unknown";
 
-    //Block 语义
-    bbox.cls_ID = static_cast<int>(block.block_class);
-    bbox.cls_name = block_class_name(block.block_class);
-
+    // Block 语义
+    bbox.cls_ID = static_cast<int>(objs.block_class);
+    bbox.cls_name = block_class_name(objs.block_class);
     // 最终 block 对应的 box
-    const yolo::Box &obj = block.detection;
+    const yolo::Box &obj = objs.best_pattern;
 
     size_t valid_points = 0;
 
-    // Azure Kinect depth 单位是 mm，这里转成 m
+    // Azure Kinect depth 单位：可能是 mm 或其他
     const float depth_scale = 0.001f;
 
-    // 获取深度相机内参
-    CameraIntrinsics intr = get_depth_intrinsics();
+    // 获取相机内参（深度已经对齐到颜色图）
+    CameraIntrinsics intr = get_color_intrinsics();
     const float fx = intr.fx;
     const float fy = intr.fy;
     const float cx = intr.cx;
     const float cy = intr.cy;
 
-    // 遍历 box 内像素 
+    // //调试输出
+    // std::cout << depth_image.cols << " x " << depth_image.rows << std::endl;
+    // std::cout << "fx=" << fx << " fy=" << fy
+    //           << " cx=" << cx << " cy=" << cy << std::endl;
+
+    // 遍历 box 内像素
     for (int py = obj.top; py < obj.bottom; ++py)
     {
         for (int px = obj.left; px < obj.right; ++px)
@@ -218,9 +224,54 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
                 continue;
             }
 
+     
+            // 平面一致性滤波（核心：过滤偏离平面的噪声点）
+            // 取当前像素的上下左右4邻域（比3x3邻域更轻量，适合平面）
+            bool is_plane_point = true;
+            int valid_neighbor = 0;
+            float neighbor_depth_avg = 0.0f;
+            // 定义4邻域的偏移量（上、下、左、右）
+            int dx_list[] = {0, 0, -1, 1};
+            int dy_list[] = {-1, 1, 0, 0};
+
+            for (int i = 0; i < 4; ++i)
+            {
+                int nx = px + dx_list[i];
+                int ny = py + dy_list[i];
+                // 邻域像素边界判断
+                if (nx < 0 || nx >= depth_image.cols || ny < 0 || ny >= depth_image.rows)
+                {
+                    continue;
+                }
+                // 邻域深度有效性判断
+                uint16_t n_raw = depth_image.at<uint16_t>(ny, nx);
+                float n_depth = n_raw * depth_scale;
+                if (n_raw == 0 || n_raw == UINT16_MAX || n_depth < MIN_DEPTH || n_depth > MAX_DEPTH)
+                {
+                    continue;
+                }
+                neighbor_depth_avg += n_depth;
+                valid_neighbor++;
+            }
+
+            // 邻域有效像素不足 → 视为边缘点，过滤
+            if (valid_neighbor < 2)
+            {
+                continue;
+            }
+            neighbor_depth_avg /= valid_neighbor;
+
+            // 当前像素深度与邻域平均深度差过大 → 偏离平面，过滤
+            if (fabs(depth_value - neighbor_depth_avg) > DEPTH_DIFF_THRESHOLD)
+            {
+                continue;
+            }
+
             // 像素 → 相机坐标
-            float X = -(px - cx) * depth_value / fx;
-            float Y = -(py - cy) * depth_value / fy;
+            // OpenCV像素坐标系: x向右, y向下
+            // 相机坐标系: x向右, y向下, z向前
+            float X = (px - cx) * depth_value / fx;
+            float Y = (py - cy) * depth_value / fy;
             float Z = depth_value;
 
             cloud->points.emplace_back(X, Y, Z);
@@ -250,24 +301,25 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
     {
         return bbox;
     }
-
-    // 平均中心 
+    // 平均中心
     bbox.center.x /= valid_points;
     bbox.center.y /= valid_points;
     bbox.center.z /= valid_points;
 
-    //坐标变换
+    // 坐标变换
     float Xc = bbox.center.x;
     float Yc = bbox.center.y;
     float Zc = bbox.center.z;
 
-    float tx = 0.175f;
-    float ty = -0.32851f;
-    float tz = 0.701f;
+    // float tx = 0.175f;
+    // float ty = -0.32851f;
+    // float tz = 0.701f;
 
-    bbox.center.x = 1 * Xc + 0 * Yc + 0 * Zc + tx;
-    bbox.center.y = 0 * Xc + 0 * Yc + 1 * Zc + ty;
-    bbox.center.z = 0 * Xc - 1 * Yc + 0 * Zc + tz;
+    // // k4a相机坐标：x向右，y向下，z向前
+
+    // bbox.center.x = 0 * Xc + 0 * Yc + 1 * Zc + tx;
+    // bbox.center.y = 0 * Xc + 1 * Yc + 0 * Zc + ty;
+    // bbox.center.z = (-1) * Xc + 0 * Yc + 0 * Zc + tz;
 
     float yaw = atan2(bbox.center.x, bbox.center.z);
     float pitch = atan2(-bbox.center.y, bbox.center.z);
@@ -283,7 +335,7 @@ void K4a::Value_Depth_to_Pcl(
 {
     cloud.clear();
 
-    //  获取颜色相机内参（ depth 已对齐到 color）
+    //  获取颜色相机内参（ 若depth 已对齐到 color）
     CameraIntrinsics intr = get_color_intrinsics();
     const float fx = intr.fx;
     const float fy = intr.fy;
@@ -298,6 +350,8 @@ void K4a::Value_Depth_to_Pcl(
     const int height = depth_to_color.get_height_pixels();
 
     // 像素 → 相机坐标
+    // OpenCV像素坐标系: x向右, y向下
+    // 相机坐标系: x向右, y向上, z向前
     for (int v = 0; v < height; v += 9)
     {
         for (int u = 0; u < width; u += 9)
@@ -309,7 +363,7 @@ void K4a::Value_Depth_to_Pcl(
                 continue;
 
             float x = (u - cx) * depth_value / fx;
-            float y = (v - cy) * depth_value / fy;
+            float y = -(v - cy) * depth_value / fy; // 翻转Y轴
             float z = depth_value;
 
             cloud.emplace_back(x, y, z);

@@ -113,6 +113,7 @@
         "/opt/ros/noetic/lib/python3/dist-packages"
     ],
     "git.ignoreLimitWarning": true,
+    "ROS2.distro": "noetic",
     // "cmake.configureSettings": {
     //     "BUILD_WITH_ROS": "OFF"
     // },

@@ -48,7 +48,7 @@ int main(
 
         std::string engine_path =
             "/home/li/camera_ws/src/camera_bridge/workspace/model_generate/"
-            "yolo_dete_block/weights/best.engine";
+            "yolo_dete_block_new/weights/best.engine";
 
         yolo.Yolov8_Enable(engine_path);
         
@@ -59,11 +59,11 @@ int main(
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
             new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::visualization::PCLVisualizer::Ptr viewer(
-            new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
+        // pcl::visualization::PCLVisualizer::Ptr viewer(
+        //     new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
 
-        viewer->setBackgroundColor(0, 0, 0);
-        viewer->addCoordinateSystem(0.2);
+        // viewer->setBackgroundColor(0, 0, 0);
+        // viewer->addCoordinateSystem(0.2);
 
         bool first_cloud = true;
         int frame_id = 0;
@@ -88,33 +88,37 @@ int main(
             vision::draw_yolo_detections(yolo_vis, detections);
             cv::imshow("YOLO Debug", yolo_vis);
 
-            // Block 融合 - 返回所有检测到的blocks
-            FinalBlockResults blocks = block_recognizer.recognize(detections);
+            // Block 融合 - 返回所有检测到的blocks 结构体容器，包含多个结构体对象
+            FinalBlockResults blocks_patterns = block_recognizer.recognize(detections);
 
             // 显示 Final Block 窗口
             cv::Mat block_vis = color_image.clone();
 
             // 处理所有检测到的blocks
-            for (const auto& block : blocks)
+            if (!blocks_patterns.empty())
             {
-                // 绘制融合结果
-                vision::draw_block_result(block_vis, block);
-
-                // 3D 计算
-                BoundingBox3D bbox =
-                    k4a_device.Value_Block_to_Pcl(cloud, depth_image, block);
-                
-                const char* class_name = block_class_name(block.block_class);
-
-                if (frame_id++ % 5 == 0)
+                for (const auto &results : blocks_patterns)
                 {
-                    std::cout << "Block Class: " << class_name
-                              << " Confidence: " << block.confidence
-                              << " Center: ["
-                              << bbox.center.x << ", "
-                              << bbox.center.y << ", "
-                              << bbox.center.z << "]\n";
-                }
+                    // 绘制融合结果
+                    vision::draw_block_result(block_vis, results);
+
+                    // 3D 计算
+                    BoundingBox3D bbox =
+                        k4a_device.Value_Block_to_Pcl(cloud, depth_image, results);
+                    const char *class_name = block_class_name(results.block_class);
+
+                    if (frame_id++ % 5 == 0)
+                    {
+                        std::cout << "Block Class: " << class_name
+                                  << " Confidence: " << results.confidence
+                                  << " Center: ["
+                                  << bbox.center.x << ", "
+                                  << bbox.center.y << ", "
+                                  << bbox.center.z << ", "
+                                  << bbox.principal_dir[0] << "]\n";
+                    }
+                
+            
 
 #ifdef BUILD_WITH_ROS
                 std_msgs::String msg;
@@ -122,25 +126,29 @@ int main(
                 ss << bbox.cls_ID << ","
                    << bbox.center.x << ","
                    << bbox.center.y << ","
-                   << bbox.center.z;
+                   << bbox.center.z << ","
+                   << bbox.principal_dir[0]; // yaw
                 msg.data = ss.str();
                 target_pub.publish(msg);
 #endif
-
+                
+            
                 // PCL 显示
-                if (first_cloud)
-                {
-                    viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
-                    viewer->resetCameraViewpoint("target_cloud");
-                    first_cloud = false;
-                }
-                else
-                {
-                    viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
-                }
+                // if (first_cloud)
+                // {
+                //     viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                //     viewer->resetCameraViewpoint("target_cloud");
+                //     first_cloud = false;
+                // }
+                // else
+                // {
+                //     viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                // }
             }
+        }
 
-            cv::imshow("Final Block", block_vis);
+            // cv::imshow("Final Block", block_vis);
+            // cv::imshow("depth_iamge",depth_image);
 
             viewer->spinOnce(10);
 
@@ -151,7 +159,7 @@ int main(
 #ifdef BUILD_WITH_ROS
             ros::spinOnce();
 #endif
-        }
+            }
 
         return EXIT_SUCCESS;
     }

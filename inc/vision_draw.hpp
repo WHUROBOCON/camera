@@ -17,4 +17,11 @@ namespace vision
         cv::Mat &image,
         const FinalBlockResult &block,
         int thickness = 3);
+
+    // 绘制3D立方体中心点投影（用于深度验证）
+    void draw_3d_center_projection(
+        cv::Mat &image,
+        float center_x, float center_y, float center_z,
+        float fx, float fy, float cx, float cy);
 }
+

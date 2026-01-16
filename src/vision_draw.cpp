@@ -106,4 +106,59 @@ namespace vision
             2);
     }
 
+    // 绘制3D立方体中心点投影（用于深度验证）
+    void draw_3d_center_projection(
+        cv::Mat &image,
+        float center_x, float center_y, float center_z,
+        float fx, float fy, float cx, float cy)
+    {
+        // 相机坐标系 → 2D像素坐标
+        // u = fx * X / Z + cx
+        // v = fy * Y / Z + cy
+        
+        if (center_z <= 0.0f)
+        {
+            std::cout << "[DEBUG] 无效的深度值：" << center_z << std::endl;
+            return; // 无效的深度
+        }
+
+        int pixel_x = static_cast<int>(fx * center_x / center_z + cx);
+        int pixel_y = static_cast<int>(fy * center_y / center_z + cy);
+
+        std::cout << "[PROJECTION] 3D中心: (" << center_x << ", " << center_y << ", " 
+                  << center_z << ") → 2D像素: (" << pixel_x << ", " << pixel_y 
+                  << ") 图像尺寸: " << image.cols << "x" << image.rows << std::endl;
+
+        // 检查是否在图像范围内
+        if (pixel_x < 0 || pixel_x >= image.cols || 
+            pixel_y < 0 || pixel_y >= image.rows)
+        {
+            std::cout << "[WARNING] 投影点超出图像范围！" << std::endl;
+            return;
+        }
+
+        // 绘制中心点（大十字 + 圆圈）
+        cv::Scalar cyan = cv::Scalar(255, 255, 0); // 青色 (BGR)
+        
+        // 圆形标记
+        cv::circle(image, {pixel_x, pixel_y}, 8, cyan, 2);
+        
+        // 十字线
+        cv::line(image, {pixel_x - 15, pixel_y}, {pixel_x + 15, pixel_y}, cyan, 2);
+        cv::line(image, {pixel_x, pixel_y - 15}, {pixel_x, pixel_y + 15}, cyan, 2);
+
+        // 绘制深度值信息
+        std::string depth_text = cv::format("Z=%.2fm", center_z);
+        cv::putText(
+            image,
+            depth_text,
+            {pixel_x + 15, pixel_y - 10},
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.6,
+            cyan,
+            2);
+        
+        std::cout << "[SUCCESS] 已绘制3D中心点投影" << std::endl;
+    }
+
 } // namespace vision

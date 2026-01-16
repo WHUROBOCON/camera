@@ -2,11 +2,13 @@
 
 // 核心识别逻辑：处理所有blocks
 FinalBlockResults BlockRecognizer::recognize(const yolo::BoxArray& dets) const {
+
     FinalBlockResults results;
 
     // 1. 收集所有 blocks
     std::vector<const yolo::Box*> blocks;
     std::vector<const yolo::Box*> faces;
+    
 
     for (const auto& d : dets) {
         if (d.class_label == 0) { // block
@@ -30,10 +32,13 @@ FinalBlockResults BlockRecognizer::recognize(const yolo::BoxArray& dets) const {
 
         // 找属于该 block 的 face
         std::set<int> face_classes;
-        float face_conf_sum = 0.0f;
-        int face_cnt = 0;
+        const yolo::Box *best_face_ptr = nullptr; // 指向置信度最大的face
+        float max_confidence = 0.0f;
 
-        for (auto f : faces) {
+        for (auto f : faces)
+        {
+            if (f == nullptr)
+                continue; // 防止空指针，提高鲁棒性
             cv::Rect fr(
                 f->left, f->top,
                 f->right - f->left,
@@ -43,13 +48,16 @@ FinalBlockResults BlockRecognizer::recognize(const yolo::BoxArray& dets) const {
             float inter = (block_rect & fr).area();
             if (inter > 0.7f * fr.area()) {
                 face_classes.insert(f->class_label);
-                face_conf_sum += f->confidence;
-                face_cnt++;
+                if (f->confidence > max_confidence) {
+                    best_face_ptr = f;
+                    max_confidence = f->confidence;
+                }
             }
         }
 
             // 判定 block 类别
         BlockClass block_class = BlockClass::UNKNOWN;
+        int face_cnt = face_classes.size();
 
         // 如果有检测到的face，根据face类别判定block类别
         if (face_cnt > 0) {
@@ -93,17 +101,21 @@ FinalBlockResults BlockRecognizer::recognize(const yolo::BoxArray& dets) const {
         }
 
         // 只有判定出了类别才加入结果
-        if (block_class != BlockClass::UNKNOWN) {
+        if (block_class != BlockClass::UNKNOWN && best_face_ptr != nullptr) {
             FinalBlockResult result;
             result.detection = *block;
             result.detection.class_label = static_cast<int>(block_class);
-            
+            result.block_class = block_class;
+            result.best_pattern = *best_face_ptr;
+            if (face_cnt > 0) {
+                result.best_pattern = *best_face_ptr; // 初始化最佳pattern为置信度最大的face
+            }
+
             // 只返回有face关联的block
             if (face_cnt > 0) {
                 // 融合block和face的置信度
-                result.confidence = 0.5f * block->confidence + 0.5f * (face_conf_sum / face_cnt);
+                result.confidence = 0.5f * block->confidence + 0.5f * result.best_pattern.confidence;
                 result.detection.confidence = result.confidence;
-                result.block_class = block_class;
                 results.push_back(result);
             }
             // 否则不返回这个孤立的block

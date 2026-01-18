@@ -59,11 +59,11 @@ int main(
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
             new pcl::PointCloud<pcl::PointXYZ>);
-        // pcl::visualization::PCLVisualizer::Ptr viewer(
-        //     new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
+        pcl::visualization::PCLVisualizer::Ptr viewer(
+            new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
 
-        // viewer->setBackgroundColor(0, 0, 0);
-        // viewer->addCoordinateSystem(0.2);
+        viewer->setBackgroundColor(0, 0, 0);
+        viewer->addCoordinateSystem(0.2);
 
         bool first_cloud = true;
         int frame_id = 0;
@@ -107,7 +107,7 @@ int main(
                         k4a_device.Value_Block_to_Pcl(cloud, depth_image, results);
                     const char *class_name = block_class_name(results.block_class);
 
-                    if (frame_id++ % 5 == 0)
+                    if (frame_id++ % 5 == 0 && bbox.center.x !=0 && bbox.center.y !=0 && bbox.center.z !=0)
                     {
                         std::cout << "Block Class: " << class_name
                                   << " Confidence: " << results.confidence
@@ -121,29 +121,33 @@ int main(
             
 
 #ifdef BUILD_WITH_ROS
-                std_msgs::String msg;
-                std::stringstream ss;
-                ss << bbox.cls_ID << ","
-                   << bbox.center.x << ","
-                   << bbox.center.y << ","
-                   << bbox.center.z << ","
-                   << bbox.principal_dir[0]; // yaw
-                msg.data = ss.str();
-                target_pub.publish(msg);
+                if(bbox.center.x !=0 && bbox.center.y !=0 && bbox.center.z !=0) 
+                {
+                    std_msgs::String msg;
+                    std::stringstream ss;
+                    ss << bbox.cls_ID << ","
+                       << bbox.center.x << ","
+                       << bbox.center.y << ","
+                       << bbox.center.z << ","
+                       << bbox.principal_dir[0]; // yaw
+                    msg.data = ss.str();
+                    target_pub.publish(msg);
+                }
+              
 #endif
                 
             
                 // PCL 显示
-                // if (first_cloud)
-                // {
-                //     viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
-                //     viewer->resetCameraViewpoint("target_cloud");
-                //     first_cloud = false;
-                // }
-                // else
-                // {
-                //     viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
-                // }
+                if (first_cloud)
+                {
+                    viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                    viewer->resetCameraViewpoint("target_cloud");
+                    first_cloud = false;
+                }
+                else
+                {
+                    viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                }
             }
         }
 

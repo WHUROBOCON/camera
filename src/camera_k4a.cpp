@@ -205,64 +205,19 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
     // std::cout << "fx=" << fx << " fy=" << fy
     //           << " cx=" << cx << " cy=" << cy << std::endl;
 
-    // 遍历 box 内像素
+    // 遍历检测框内的所有像素
     for (int py = obj.top; py < obj.bottom; ++py)
     {
         for (int px = obj.left; px < obj.right; ++px)
         {
-            if (px < 0 || px >= depth_image.cols ||
-                py < 0 || py >= depth_image.rows)
+            // 边界检查
+            if (px < 0 || px >= depth_image.cols || py < 0 || py >= depth_image.rows)
             {
                 continue;
             }
 
-            float depth_value =
-                depth_image.at<uint16_t>(py, px) * depth_scale;
-
+            float depth_value = depth_image.at<uint16_t>(py, px) * depth_scale;
             if (depth_value <= 0.0f || depth_value > 3.0f)
-            {
-                continue;
-            }
-
-     
-            // 平面一致性滤波（核心：过滤偏离平面的噪声点）
-            // 取当前像素的上下左右4邻域（比3x3邻域更轻量，适合平面）
-            bool is_plane_point = true;
-            int valid_neighbor = 0;
-            float neighbor_depth_avg = 0.0f;
-            // 定义4邻域的偏移量（上、下、左、右）
-            int dx_list[] = {0, 0, -1, 1};
-            int dy_list[] = {-1, 1, 0, 0};
-
-            for (int i = 0; i < 4; ++i)
-            {
-                int nx = px + dx_list[i];
-                int ny = py + dy_list[i];
-                // 邻域像素边界判断
-                if (nx < 0 || nx >= depth_image.cols || ny < 0 || ny >= depth_image.rows)
-                {
-                    continue;
-                }
-                // 邻域深度有效性判断
-                uint16_t n_raw = depth_image.at<uint16_t>(ny, nx);
-                float n_depth = n_raw * depth_scale;
-                if (n_raw == 0 || n_raw == UINT16_MAX || n_depth < MIN_DEPTH || n_depth > MAX_DEPTH)
-                {
-                    continue;
-                }
-                neighbor_depth_avg += n_depth;
-                valid_neighbor++;
-            }
-
-            // 邻域有效像素不足 → 视为边缘点，过滤
-            if (valid_neighbor < 2)
-            {
-                continue;
-            }
-            neighbor_depth_avg /= valid_neighbor;
-
-            // 当前像素深度与邻域平均深度差过大 → 偏离平面，过滤
-            if (fabs(depth_value - neighbor_depth_avg) > DEPTH_DIFF_THRESHOLD)
             {
                 continue;
             }
@@ -292,15 +247,15 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
             valid_points++;
         }
     }
+    if (valid_points == 0)
+    {
+        return bbox;
+    }
 
     cloud->width = cloud->points.size();
     cloud->height = 1;
     cloud->is_dense = false;
 
-    if (valid_points == 0)
-    {
-        return bbox;
-    }
     // 平均中心
     bbox.center.x /= valid_points;
     bbox.center.y /= valid_points;

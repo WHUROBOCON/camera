@@ -48,7 +48,7 @@ int main(
 
         std::string engine_path =
             "/home/li/camera_ws/src/camera_bridge/workspace/model_generate/"
-            "yolo_dete_block_new/weights/best.engine";
+            "yolo_dete_1_20/weights/best.engine";
 
         yolo.Yolov8_Enable(engine_path);
         

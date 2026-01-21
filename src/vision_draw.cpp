@@ -24,13 +24,7 @@ namespace vision
     {
         // 预定义高对比 BGR 颜色（可扩展到 32 类）
         static const cv::Scalar color_table[32] = {
-            {255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 255, 0}, 
-            {255, 0, 255}, {0, 255, 255}, {128, 0, 0}, {0, 128, 0},
-             {0, 0, 128}, {128, 128, 0}, {128, 0, 128}, {0, 128, 128}, 
-             {64, 0, 0}, {0, 64, 0}, {0, 0, 64}, {64, 64, 0}, {64, 0, 64},
-              {0, 64, 64}, {192, 0, 0}, {0, 192, 0}, {0, 0, 192}, {192, 192, 0},
-               {192, 0, 192}, {0, 192, 192}, {128, 128, 128}, {64, 128, 128}, {128, 64, 128},
-                {128, 128, 64}, {64, 64, 128}, {64, 128, 64}, {128, 64, 64}, {192, 128, 64}};
+            {255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 255, 0}, {255, 0, 255}, {0, 255, 255}, {128, 0, 0}, {0, 128, 0}, {0, 0, 128}, {128, 128, 0}, {128, 0, 128}, {0, 128, 128}, {64, 0, 0}, {0, 64, 0}, {0, 0, 64}, {64, 64, 0}, {64, 0, 64}, {0, 64, 64}, {192, 0, 0}, {0, 192, 0}, {0, 0, 192}, {192, 192, 0}, {192, 0, 192}, {0, 192, 192}, {128, 128, 128}, {64, 128, 128}, {128, 64, 128}, {128, 128, 64}, {64, 64, 128}, {64, 128, 64}, {128, 64, 64}, {192, 128, 64}};
 
         int idx = class_id % 32;
         return color_table[idx];
@@ -70,7 +64,43 @@ namespace vision
                 2);
         }
     }
+    void draw_yolo_masks(cv::Mat &img, const yolo::BoxArray &objs, float alpha)
+    {
+        for (const auto &obj : objs)
+        {
+            if (!obj.seg || obj.seg->data == nullptr)
+                continue;
 
+            int left = obj.left;
+            int top = obj.top;
+            int width = obj.right - obj.left;
+            int height = obj.bottom - obj.top;
+
+            if (left < 0 || top < 0 ||
+                left + width > img.cols ||
+                top + height > img.rows ||
+                width <= 0 || height <= 0)
+                continue;
+
+            cv::Mat raw_mask(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
+            raw_mask.convertTo(raw_mask, CV_8UC1);
+
+            cv::Mat mask;
+            cv::resize(raw_mask, mask, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
+
+            cv::Scalar color = class_color(obj.class_label);
+
+            cv::Mat color_mask(mask.size(), CV_8UC3, color);
+            cv::Mat mask_3c;
+            cv::cvtColor(mask, mask_3c, cv::COLOR_GRAY2BGR);
+
+            cv::Mat region = img(cv::Rect(left, top, width, height));
+            cv::Mat blended;
+            cv::addWeighted(region, 1 - alpha, color_mask, alpha, 0, blended);
+
+            blended.copyTo(region, mask);
+        }
+    }
 
     // Block 最终结果绘制
     void draw_block_result(
@@ -104,61 +134,6 @@ namespace vision
             0.7,
             color,
             2);
-    }
-
-    // 绘制3D立方体中心点投影（用于深度验证）
-    void draw_3d_center_projection(
-        cv::Mat &image,
-        float center_x, float center_y, float center_z,
-        float fx, float fy, float cx, float cy)
-    {
-        // 相机坐标系 → 2D像素坐标
-        // u = fx * X / Z + cx
-        // v = fy * Y / Z + cy
-        
-        if (center_z <= 0.0f)
-        {
-            std::cout << "[DEBUG] 无效的深度值：" << center_z << std::endl;
-            return; // 无效的深度
-        }
-
-        int pixel_x = static_cast<int>(fx * center_x / center_z + cx);
-        int pixel_y = static_cast<int>(fy * center_y / center_z + cy);
-
-        std::cout << "[PROJECTION] 3D中心: (" << center_x << ", " << center_y << ", " 
-                  << center_z << ") → 2D像素: (" << pixel_x << ", " << pixel_y 
-                  << ") 图像尺寸: " << image.cols << "x" << image.rows << std::endl;
-
-        // 检查是否在图像范围内
-        if (pixel_x < 0 || pixel_x >= image.cols || 
-            pixel_y < 0 || pixel_y >= image.rows)
-        {
-            std::cout << "[WARNING] 投影点超出图像范围！" << std::endl;
-            return;
-        }
-
-        // 绘制中心点（大十字 + 圆圈）
-        cv::Scalar cyan = cv::Scalar(255, 255, 0); // 青色 (BGR)
-        
-        // 圆形标记
-        cv::circle(image, {pixel_x, pixel_y}, 8, cyan, 2);
-        
-        // 十字线
-        cv::line(image, {pixel_x - 15, pixel_y}, {pixel_x + 15, pixel_y}, cyan, 2);
-        cv::line(image, {pixel_x, pixel_y - 15}, {pixel_x, pixel_y + 15}, cyan, 2);
-
-        // 绘制深度值信息
-        std::string depth_text = cv::format("Z=%.2fm", center_z);
-        cv::putText(
-            image,
-            depth_text,
-            {pixel_x + 15, pixel_y - 10},
-            cv::FONT_HERSHEY_SIMPLEX,
-            0.6,
-            cyan,
-            2);
-        
-        std::cout << "[SUCCESS] 已绘制3D中心点投影" << std::endl;
     }
 
 } // namespace vision

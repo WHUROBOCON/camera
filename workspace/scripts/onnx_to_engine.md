@@ -7,8 +7,8 @@
 可以直接运行  
 ```
 /home/li/TensorRT-8.6.1.6/bin/trtexec \
-    --onnx=/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_block_new/weights/best.onnx \
-    --saveEngine=/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_block_new/weights/best.engine \
+    --onnx=/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_1_20/weights/best.onnx \
+    --saveEngine=/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_1_20/weights/best.engine \
     --fp16 \
     --workspace=4096
 ```

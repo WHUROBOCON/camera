@@ -11,6 +11,12 @@ namespace vision
         cv::Mat &image,
         const yolo::BoxArray &objs,
         int thickness = 2);
+        
+    // 画分割 mask
+    void draw_yolo_masks(
+        cv::Mat &image,
+        const yolo::BoxArray &objs,
+        float alpha = 0.5f);
 
     // 单独画一个 box（以后给 block 用）
     void draw_block_result(
@@ -23,5 +29,7 @@ namespace vision
         cv::Mat &image,
         float center_x, float center_y, float center_z,
         float fx, float fy, float cx, float cy);
+
+
 }
 

@@ -13,6 +13,7 @@ find_package(realsense2 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(k4a REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # ---- 检查ROS环境 ----
 if(DEFINED ENV{ROS_DISTRO} OR DEFINED CATKIN_DEVEL_PREFIX)
@@ -70,9 +71,12 @@ set(COMMON_LIBS
     ${CUDA_LIBRARIES}
     yolo
     -lffi
+    yaml-cpp
 )
 #---realsense---
-add_executable(rs_viewer src/rs_detect.cpp src/realsense.cpp src/myinfer.cpp src/yolo/yolo.cu)
+add_executable(rs_viewer src/rs_detect.cpp src/realsense.cpp
+    src/vision_draw.cpp
+    src/myinfer.cpp src/yolo/yolo.cu)
 target_link_libraries(rs_viewer PRIVATE
 
     realsense2::realsense2
@@ -107,13 +111,6 @@ target_link_libraries(capture_images PRIVATE
 )
 
 
-# #---dynamic_rocog---
-# add_executable(dynamic_recog src/dynamic_recog.cpp src/grid_state.cpp src/myinfer.cpp src/yolo/yolo.cu src/camera_k4a.cpp)
-# target_link_libraries(dynamic_recog PRIVATE
-
-#     k4a::k4a
-#     ${COMMON_LIBS}
-# )
 
 #             ROS可执行文件（仅在ROS下编译）
 if(BUILD_WITH_ROS)
@@ -143,7 +140,9 @@ if(BUILD_WITH_ROS)
     )
 
     #---rs_viewer_ros---
-    add_executable(rs_viewer_ros src/rs_detect.cpp src/realsense.cpp src/myinfer.cpp src/yolo/yolo.cu)
+    add_executable(rs_viewer_ros src/rs_detect.cpp src/realsense.cpp src/myinfer.cpp src/yolo/yolo.cu
+        src/vision_draw.cpp
+    )
     target_compile_definitions(rs_viewer_ros PRIVATE BUILD_WITH_ROS)
     target_include_directories(rs_viewer_ros PRIVATE ${catkin_INCLUDE_DIRS} inc)
     target_link_libraries(rs_viewer_ros PRIVATE
@@ -157,6 +156,7 @@ if(BUILD_WITH_ROS)
         yolo
         pthread
         -lffi
+        yaml-cpp
     )
     install(TARGETS rs_viewer_ros RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 

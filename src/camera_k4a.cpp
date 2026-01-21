@@ -267,7 +267,7 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
     float Zc = bbox.center.z;
 
     // float tx = 0.175f;
-    // float ty = -0.32851f;
+    // float ty = -0.2515f;
     // float tz = 0.701f;
 
     // // k4a相机坐标：x向右，y向下，z向前

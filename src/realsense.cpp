@@ -3,60 +3,98 @@
 #include "myinfer.hpp"
 
 using namespace std;
-
-void RealSense::Configuration_Default()
+CameraParams CameraParams::LoadFromFile (const std::string& filepath)
 {
-    cfg.enable_stream(RS2_STREAM_COLOR, 640, 480, RS2_FORMAT_RGB8, 60);
-    cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 60);
+    CameraParams params;
+    try {
+        YAML::Node node = YAML::LoadFile(filepath);
+
+        params.width = node["camera"]["width"].as<int>();
+        params.height = node["camera"]["height"].as<int>();
+        params.fps = node["camera"]["fps"].as<int>();
+
+        std::string mode_str = node["camera"]["mode"].as<std::string>();
+        params.mode = (mode_str == "infrared") ? CameraMode::INFRARED_ONLY : CameraMode::DEFAULT;
+
+        // 解析 3x3 矩阵
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                params.rotation(i, j) = node["transform"]["rotation"][i][j].as<float>();
+            }
+        }
+
+        params.translation << node["transform"]["translation"][0].as<float>(),
+                         node["transform"]["translation"][1].as<float>(),
+                         node["transform"]["translation"][2].as<float>();
+        
+        params.min_dist = node["params"]["min_distance"].as<float>();
+        params.max_dist = node["params"]["max_distance"].as<float>();
+    } catch (const std::exception& e) {
+        std::cerr << "[Config] 使用默认参数，加载失败: " << e.what() << std::endl;
+    }
+    return params;
+}
+
+
+void RealSense::Configuration() {
+    // 1. 根据模式启用数据流
+    if (m_params.mode == CameraMode::DEFAULT) {
+        // 彩色和深度流
+        cfg.enable_stream(RS2_STREAM_COLOR, m_params.width, m_params.height, RS2_FORMAT_BGR8, m_params.fps);
+        cfg.enable_stream(RS2_STREAM_DEPTH, m_params.width, m_params.height, RS2_FORMAT_Z16, m_params.fps);
+    } 
+    else if (m_params.mode == CameraMode::INFRARED_ONLY) {
+        // 左右红外流 (注意分辨率通常是 640x480)
+        cfg.enable_stream(RS2_STREAM_INFRARED, 1, m_params.width, m_params.height, RS2_FORMAT_Y8, m_params.fps);
+        cfg.enable_stream(RS2_STREAM_INFRARED, 2, m_params.width, m_params.height, RS2_FORMAT_Y8, m_params.fps);
+    }
+    
+    // 2. 启动管道
     profile = pipe.start(cfg);
     std::cout << "管道启动成功！" << std::endl;
-    rs2::video_stream_profile color_profile =
-        profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
-    intrinsics_color = color_profile.get_intrinsics();
-
-    // gpt generate
-    auto depth_profile = profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
-    intrinsics_depth = depth_profile.get_intrinsics(); // get intrinsics
-
-    COUT_GREEN_START;
-    std::cout << "Open Realsense Default Success!" << std::endl;
-    COUT_COLOR_END;
-}
-
-void RealSense::Configuration_Infrared_Only()
-{
-    cfg.enable_stream(RS2_STREAM_INFRARED, 1, 640, 480, RS2_FORMAT_Y8, 30);
-    cfg.enable_stream(RS2_STREAM_INFRARED, 2, 640, 480, RS2_FORMAT_Y8, 30);
-    profile = pipe.start(cfg);
-    rs2::video_stream_profile infrared_profile =
-        profile.get_stream(RS2_STREAM_INFRARED).as<rs2::video_stream_profile>();
-    intrinsics_infrared = infrared_profile.get_intrinsics();
-    for (auto &&sensor : profile.get_device().query_sensors()) // Disable the infrared laser emitter of RealSense camera
-    {
-        if (sensor.supports(RS2_OPTION_ENABLE_AUTO_EXPOSURE))
-        {
-            sensor.set_option(RS2_OPTION_EMITTER_ENABLED, 1);
+    
+    // 3. 根据模式提取对应的内参
+    if (m_params.mode == CameraMode::DEFAULT) {
+        // 获取彩色内参
+        auto color_profile = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
+        intrinsics_color = color_profile.get_intrinsics();
+        
+        // 获取深度内参和 Scale
+        auto depth_profile = profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
+        intrinsics_depth = depth_profile.get_intrinsics();
+        
+        auto depth_sensor = profile.get_device().first<rs2::depth_sensor>();
+        depth_scale = depth_sensor.get_depth_scale();
+    } 
+    else if (m_params.mode == CameraMode::INFRARED_ONLY) {
+        // 获取红外内参
+        auto ir_profile = profile.get_stream(RS2_STREAM_INFRARED, 1).as<rs2::video_stream_profile>();
+        intrinsics_infrared = ir_profile.get_intrinsics();
+        
+        // 处理红外激光发射器 
+        for (auto &&sensor : profile.get_device().query_sensors()) {
+            if (sensor.supports(RS2_OPTION_EMITTER_ENABLED)) {
+                // 根据需求设置 1 (开启) 或 0 (关闭)
+                sensor.set_option(RS2_OPTION_EMITTER_ENABLED, 1);
+            }
         }
     }
-    COUT_GREEN_START
-    std::cout << "Open Realsense Infrared Only Success!" << std::endl;
+    
+    COUT_GREEN_START;
+    std::cout << "Open Realsense [" 
+    << (m_params.mode == CameraMode::DEFAULT ? "Default" : "Infrared Only") 
+    << "] Success!" << std::endl;
     COUT_COLOR_END;
 }
-
-RealSense RealSense::Create_Default()
-{
-    RealSense rs;
-    rs.Configuration_Default();
-    return rs;
+// 构造函数
+RealSense::RealSense(const CameraParams& params) : m_params(params) {
+    this->Configuration(); // 一次性完成所有逻辑
 }
 
-RealSense RealSense::Create_Infrared_Only()
-{
-    RealSense rs;
-    rs.Configuration_Infrared_Only();
-    return rs;
+RealSense RealSense::Create_FromFile(const std::string& config_path) {
+    CameraParams params = CameraParams::LoadFromFile(config_path);
+    return RealSense(params); 
 }
-
 void RealSense::Image_to_Cv(cv::Mat &image_cv_color, cv::Mat &image_cv_depth)
 {
     // Wait for frames and align them to color
@@ -108,84 +146,6 @@ void RealSense::Infrared_to_Cv(cv::Mat &image_cv_infrared_left, cv::Mat &image_c
     cv::cvtColor(image_rs_infrared_right, image_cv_infrared_right, cv::COLOR_GRAY2BGR);
 }
 
-// 只是把分割结果覆盖到彩色图像上。
-void RealSense::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray objs)
-{
-    // Cycle through all objectives, frames, and labels
-    for (auto &obj : objs)
-    {
-        if (obj.left >= 0 && obj.right < image_cv_color.cols && obj.top >= 0 && obj.bottom <= image_cv_color.rows)
-        {
-            uint8_t b, g, r;
-            std::tie(b, g, r) = yolo::random_color(obj.class_label);
-            cv::rectangle(image_cv_color, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
-                          cv::Scalar(b, g, r), 5);
-            auto name = yolo_labels[obj.class_label];
-            auto caption = cv::format("%s %.2f", name, obj.confidence);
-            int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_color, cv::Point(obj.left - 3, obj.top - 33),
-                          cv::Point(obj.left + width, obj.top), cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_color, caption, cv::Point(obj.left, obj.top - 5), 0, 1, cv::Scalar::all(0), 2, 16);
-            if (obj.seg && obj.seg->data != nullptr)
-            {
-                if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_color.cols &&
-                    obj.top >= 0 && obj.seg->height >= 0 && obj.top + obj.seg->height <= image_cv_color.rows)
-                {
-
-                    cv::Mat mask = cv::Mat(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
-                    mask.convertTo(mask, CV_8UC1);
-
-                    // Ensure mask dimensions are valid before resizing
-                    int mask_width = std::max(1, static_cast<int>(obj.right - obj.left));
-                    int mask_height = std::max(1, static_cast<int>(obj.bottom - obj.top));
-
-                    // Resize mask to fit the bounding box
-                    cv::resize(mask, mask, cv::Size(mask_width, mask_height), 0, 0, cv::INTER_LINEAR);
-                    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR); // Convert to 3-channel image
-
-                    // Ensure that the image region and mask have the same size
-                    cv::Mat region = image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height));
-                    cv::addWeighted(region, 0.5, mask, 0.5, 0.0, region); // Blend mask onto the image region
-
-                    mask.copyTo(image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height)));
-                }
-            }
-        }
-    }
-}
-
-// 在深度图上做可视化叠加
-void RealSense::Depth_With_Mask(cv::Mat &image_cv_depth, yolo::BoxArray objs)
-{
-    for (auto &obj : objs)
-    {
-        if (obj.left >= 0 && obj.right < image_cv_depth.cols && obj.top >= 0 && obj.bottom <= image_cv_depth.rows)
-        {
-            uint8_t b, g, r;
-            std::tie(b, g, r) = yolo::random_color(obj.class_label);
-            cv::rectangle(image_cv_depth, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
-                          cv::Scalar(b, g, r), 5);
-            auto name = yolo_labels[obj.class_label];
-            auto caption = cv::format("%s %.2f", name, obj.confidence);
-            int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_depth, cv::Point(obj.left - 3, obj.top - 33),
-                          cv::Point(obj.left + width, obj.top), cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_depth, caption, cv::Point(obj.left, obj.top - 5), 0, 1, cv::Scalar::all(0), 2, 16);
-            if (obj.seg)
-            {
-                if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_depth.cols &&
-                    obj.top >= 0 && obj.seg->height >= 0 && obj.top + obj.seg->height <= image_cv_depth.rows)
-                {
-                    mask = cv::Mat(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
-                    mask.convertTo(mask, CV_8UC1);
-                    cv::resize(mask, mask, cv::Size(obj.right - obj.left, obj.bottom - obj.top), 0, 0, cv::INTER_LINEAR);
-                    cv::addWeighted(image_cv_depth(cv::Rect(obj.left, obj.top, obj.right - obj.left, obj.bottom - obj.top)), 1.0, mask, 1.0, 0.0, mask);
-                    mask.copyTo(image_cv_depth(cv::Rect(obj.left, obj.top, obj.right - obj.left, obj.bottom - obj.top)));
-                }
-            }
-        }
-    }
-}
 
 void RealSense::Value_Depth_to_Pcl(pcl::PointCloud<pcl::PointXYZ> &cloud)
 {
@@ -209,7 +169,7 @@ void RealSense::Value_Depth_to_Pcl(pcl::PointCloud<pcl::PointXYZ> &cloud)
     std::cout << "Global PointCloud:" << cloud.size() << std::endl;
 }
 
-BoundingBox3D RealSense::Value_Mask_to_Pcl(
+BoundingBox3D RealSense::Extract_Object_PointCloud_FromDepth(
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
     const cv::Mat &depth_image,
     yolo::BoxArray objs)
@@ -271,9 +231,9 @@ BoundingBox3D RealSense::Value_Mask_to_Pcl(
 
                 float depth_value = d * depth_scale;
 
-                // 坐标转换
+                // 像素到相机 坐标转换
                 float X = (px - cx) * depth_value / fx;
-                float Y = -(py - cy) * depth_value / fy; // 保持Y向上
+                float Y = (py - cy) * depth_value / fy; 
                 float Z = depth_value;
 
                 cloud->points.emplace_back(X, Y, Z);
@@ -310,19 +270,6 @@ BoundingBox3D RealSense::Value_Mask_to_Pcl(
     cloud->height = 1;
     cloud->is_dense = false;
 
-    // PCA 主方向
-    if (!cloud->empty())
-    {
-        Eigen::Vector4f centroid;
-        pcl::compute3DCentroid(*cloud, centroid);
-        Eigen::Matrix3f cov;
-        pcl::computeCovarianceMatrixNormalized(*cloud, centroid, cov);
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver;
-        solver.compute(cov, Eigen::ComputeEigenvectors);
-        Eigen::Vector3f principal = solver.eigenvectors().col(2);
-
-        bbox.principal_dir = cv::Vec3f(principal(0), principal(1), principal(2));
-    }
 
     return bbox;
 }

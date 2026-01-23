@@ -11,11 +11,11 @@
 
 serial::Serial ser;
 
-// 包头包尾（binary）
-const uint8_t K4A_HEAD[2] = {0xFF, 0xFE};
-const uint8_t K4A_TAIL[2] = {0xAA, 0xDD};
+// 包头包尾（binary）·
+const uint8_t CAM_HEAD[2] = {0xFF, 0xFE};
+const uint8_t CAM_TAIL[2] = {0xAA, 0xDD};
 
-// 解析 k4a bbox 的字符串并生成串口二进制 payload
+// 解析 bbox 的字符串并生成串口二进制 payload
 // 输入示例: "1,12.3,45.6,78.9,0.123"  --> 5 个字段，最后一个为 yaw
 // 输出 payload: [ID(1B)] [x(4B float)] [y(4B float)] [z(4B float)] [yaw(4B float)]
 bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
@@ -70,8 +70,8 @@ bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
     return true;
 }
 
-// 回调 1：来自 k4a 的发送请求（需要加包头包尾）
-void k4aCallback(const std_msgs::String::ConstPtr &msg)
+// 回调 1：来自 camera 的发送请求（需要加包头包尾）
+void CameraCallback(const std_msgs::String::ConstPtr &msg)
 {
     if (!ser.isOpen()) {
         ROS_WARN_THROTTLE(5.0, "[serial_bridge] serial port not open");
@@ -86,9 +86,9 @@ void k4aCallback(const std_msgs::String::ConstPtr &msg)
 
     // 构建帧： HEAD + payload + TAIL  （不加 checksum）
     std::vector<uint8_t> packet;
-    packet.insert(packet.end(), K4A_HEAD, K4A_HEAD + 2);
+    packet.insert(packet.end(), CAM_HEAD, CAM_HEAD + 2);
     packet.insert(packet.end(), payload.begin(), payload.end());
-    packet.insert(packet.end(), K4A_TAIL, K4A_TAIL + 2);
+    packet.insert(packet.end(), CAM_TAIL, CAM_TAIL + 2);
 
     // 发送二进制数据（使用 const uint8_t*）
     try {
@@ -104,7 +104,7 @@ void k4aCallback(const std_msgs::String::ConstPtr &msg)
     for (uint8_t b : packet) {
         dbg << std::setw(2) << std::setfill('0') << static_cast<int>(b) << " ";
     }
-    ROS_INFO_STREAM("[serial_bridge] TX K4A -> Serial HEX: " << dbg.str());
+    ROS_INFO_STREAM("[serial_bridge] TX Camera -> Serial HEX: " << dbg.str());
 }
 
 
@@ -138,8 +138,8 @@ int main(int argc, char **argv)
     }
     ROS_INFO("Serial port opened.");
 
-    // 订阅 k4a → 串口
-    ros::Subscriber sub_k4a = nh.subscribe("/k4a/target_info", 10, k4aCallback);
+    // 订阅 camera → 串口
+    ros::Subscriber sub_camera = nh.subscribe("/camera/target_info", 10, CameraCallback);
 
     // 发布 串口 → ROS
     ros::Publisher pub_rx = nh.advertise<std_msgs::String>("/serial_rx", 10);

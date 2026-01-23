@@ -1,39 +1,6 @@
-#include "realsense.hpp"
-#include "main.hpp"
-#include "myinfer.hpp"
+#include "realsense/realsense.hpp"
+#include "utils/myinfer.hpp"
 
-using namespace std;
-CameraParams CameraParams::LoadFromFile (const std::string& filepath)
-{
-    CameraParams params;
-    try {
-        YAML::Node node = YAML::LoadFile(filepath);
-
-        params.width = node["camera"]["width"].as<int>();
-        params.height = node["camera"]["height"].as<int>();
-        params.fps = node["camera"]["fps"].as<int>();
-
-        std::string mode_str = node["camera"]["mode"].as<std::string>();
-        params.mode = (mode_str == "infrared") ? CameraMode::INFRARED_ONLY : CameraMode::DEFAULT;
-
-        // 解析 3x3 矩阵
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                params.rotation(i, j) = node["transform"]["rotation"][i][j].as<float>();
-            }
-        }
-
-        params.translation << node["transform"]["translation"][0].as<float>(),
-                         node["transform"]["translation"][1].as<float>(),
-                         node["transform"]["translation"][2].as<float>();
-        
-        params.min_dist = node["params"]["min_distance"].as<float>();
-        params.max_dist = node["params"]["max_distance"].as<float>();
-    } catch (const std::exception& e) {
-        std::cerr << "[Config] 使用默认参数，加载失败: " << e.what() << std::endl;
-    }
-    return params;
-}
 
 
 void RealSense::Configuration() {
@@ -285,18 +252,18 @@ void RealSense::Save_Image(int amount, std::string output_dir)
     cv::Mat image_infrared_saved = cv::Mat(frame_infrared.get_height(), frame_infrared.get_width(),
                                            CV_8UC1, (void *)frame_infrared.get_data());
     image_infrared_saved.convertTo(image_infrared_saved, cv::COLOR_GRAY2BGR);
-    string filename = output_dir + "objs_" + to_string(frame_count) + ".png";
+    std::string filename = output_dir + "objs_" + std::to_string(frame_count) + ".png";
     if (cv::imwrite(filename, image_infrared_saved))
     {
         COUT_YELLOW_START;
-        cout << "Save objs_" << frame_count << ".png Success!" << endl;
+        std::cout << "Save objs_" << frame_count << ".png Success!" << std::endl;
         COUT_COLOR_END;
         frame_count++;
     }
     else
     {
         COUT_RED_START;
-        cout << "Save error!" << endl;
+        std::cout << "Save error!" << std::endl;
         COUT_COLOR_END;
     }
     cv::imshow("Infrared Image", image_infrared_saved);

@@ -1,11 +1,28 @@
-#include "camera_k4a.hpp"
-#include <main.hpp>
-#include "myinfer.hpp"
+#include "k4a/camera_k4a.hpp"
+#include "utils/myinfer.hpp"
+#include "utils/utils.hpp"
+
 #include <iostream>
-#include "utils.hpp"
-#include <pcl/features/moment_of_inertia_estimation.h>
 
 using namespace std;
+
+// 私有构造函数：内部调用 Configuration()
+K4a::K4a(const CameraParams& params) : m_params(params)
+{
+    Installed_Count();
+    if (!Open())
+    {
+        throw std::runtime_error("Failed to open K4a device");
+    }
+    this->Configuration(); // 一次性完成所有逻辑
+}
+
+// 工厂函数：通过配置文件路径创建 K4a 对象
+K4a K4a::Create_FromFile(const std::string& config_path)
+{
+    CameraParams params = CameraParams::LoadFromFile(config_path);
+    return K4a(params);
+}
 
 // open k4a device
 bool K4a::Open()
@@ -45,15 +62,67 @@ void K4a::Installed_Count()
     }
 }
 
-// start device and configuration
-// It's not necessary to call this function,just instantiated classes K4a!!
+
+// start device and configuration based on CameraParams
 void K4a::Configuration()
 {
     config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
     config.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
-    config.color_resolution = K4A_COLOR_RESOLUTION_720P;
+    
+    // 根据 CameraParams 中的分辨率选择相应的配置
+    // K4a SDK 支持的分辨率: 720P, 1080P, 1440P, 1536P
+    // CameraParams 中的宽高: width = 1280, height = 720 (对应 720P)
+    if (m_params.width == 1280 && m_params.height == 720)
+    {
+        config.color_resolution = K4A_COLOR_RESOLUTION_720P;
+    }
+    else if (m_params.width == 1920 && m_params.height == 1080)
+    {
+        config.color_resolution = K4A_COLOR_RESOLUTION_1080P;
+    }
+    else if (m_params.width == 2560 && m_params.height == 1440)
+    {
+        config.color_resolution = K4A_COLOR_RESOLUTION_1440P;
+    }
+    else if (m_params.width == 2560 && m_params.height == 1536)
+    {
+        config.color_resolution = K4A_COLOR_RESOLUTION_1536P;
+    }
+    else
+    {
+        // 默认使用 720P
+        config.color_resolution = K4A_COLOR_RESOLUTION_720P;
+        COUT_BLUE_START;
+        cout << "[WARNING] 不支持的分辨率 " << m_params.width << "x" << m_params.height 
+             << "，默认使用 720P" << endl;
+        COUT_COLOR_END;
+    }
+    
+    // 根据 CameraParams 中的帧率选择相应的配置
+    // K4a SDK 支持的帧率: 5, 15, 30
+    if (m_params.fps == 5)
+    {
+        config.camera_fps = K4A_FRAMES_PER_SECOND_5;
+    }
+    else if (m_params.fps == 15)
+    {
+        config.camera_fps = K4A_FRAMES_PER_SECOND_15;
+    }
+    else if (m_params.fps == 30)
+    {
+        config.camera_fps = K4A_FRAMES_PER_SECOND_30;
+    }
+    else
+    {
+        // 默认使用 30 fps
+        config.camera_fps = K4A_FRAMES_PER_SECOND_30;
+        COUT_BLUE_START;
+        cout << "[WARNING] 不支持的帧率 " << m_params.fps 
+             << " fps，默认使用 30 fps" << endl;
+        COUT_COLOR_END;
+    }
+    
     config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
-    config.camera_fps = K4A_FRAMES_PER_SECOND_30;
     config.synchronized_images_only = true;
     device.start_cameras(&config);
     COUT_GREEN_START;
@@ -266,16 +335,14 @@ BoundingBox3D K4a::Value_Block_to_Pcl(
     float Yc = bbox.center.y;
     float Zc = bbox.center.z;
 
-    // float tx = 0.175f;
-    // float ty = -0.2515f;
-    // float tz = 0.701f;
+    // 使用配置文件中的旋转矩阵和平移向量
+    // 从相机坐标系变换到机器人坐标系: P_robot = R * P_camera + T
+    Eigen::Vector3f camera_posi(Xc, Yc, Zc);
+    Eigen::Vector3f robot_posi = m_params.rotation * camera_posi + m_params.translation;
 
-    // // k4a相机坐标：x向右，y向下，z向前
-
-    // bbox.center.x = 0 * Xc + 0 * Yc + 1 * Zc + tx;
-    // bbox.center.y = 0 * Xc + 1 * Yc + 0 * Zc + ty;
-    // bbox.center.z = (-1) * Xc + 0 * Yc + 0 * Zc + tz;
-
+    bbox.center.x = robot_posi.x();
+    bbox.center.y = robot_posi.y();
+    bbox.center.z = robot_posi.z();
     float yaw = atan2(bbox.center.x, bbox.center.z);
     float pitch = atan2(-bbox.center.y, bbox.center.z);
 

@@ -1,14 +1,11 @@
 #include <iostream>
 #include <csignal>
 
-#include <opencv2/opencv.hpp>
-#include <pcl/visualization/pcl_visualizer.h>
 
-#include "block_recognizer.hpp"
-#include "camera_k4a.hpp"
-#include "myinfer.hpp"
-#include "main.hpp"
-#include "vision_draw.hpp"
+#include "utils/block_recognizer.hpp"
+#include "k4a/camera_k4a.hpp"
+#include "utils/myinfer.hpp"
+#include "utils/vision_draw.hpp"
 
 #ifdef BUILD_WITH_ROS
 #include <ros/ros.h>
@@ -41,8 +38,9 @@ int main(
 
     try
     {
-        // 初始化 
-        K4a k4a_device;
+        // 初始化 - 使用绝对路径或从环境变量获取
+        std::string config_path = "/home/li/camera_ws/src/camera_bridge/config/AzureKinectSDKConfig.yaml";
+        K4a k4a_device = K4a::Create_FromFile(config_path);
         Yolo yolo;
         BlockRecognizer block_recognizer;
 

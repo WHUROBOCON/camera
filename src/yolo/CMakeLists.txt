@@ -18,6 +18,11 @@ include_directories(
 cuda_add_library(yolo STATIC ${YOLO_SOURCES})
 
 link_directories(${TENSORRT_DIR}/lib)
+target_include_directories(yolo
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../inc
+)
+
 
 target_link_libraries(yolo 
     ${OpenCV_LIBS}

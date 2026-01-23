@@ -4,8 +4,8 @@
 #include <opencv2/opencv.hpp>
 
 
-#include "infer.hpp"
-#include "yolo.hpp"
+#include "utils/infer.hpp"
+#include "common/yolo.hpp"
 
 #include <chrono>
 

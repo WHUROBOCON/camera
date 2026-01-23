@@ -1,0 +1,9 @@
+CUDA
+CUDNN
+TensorRT-8.6.1.6
+Pcl
+VTK-7.1 #建议源码编译
+ROS noetic
+#realsense 驱动
+#k4a 驱动
+#其他的依赖缺少报错时再装吧，不记得了

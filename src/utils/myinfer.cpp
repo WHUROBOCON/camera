@@ -1,4 +1,4 @@
-#include "myinfer.hpp"
+#include "utils/myinfer.hpp"
 
 // convert cv::Mat to yolo::Image
 yolo::Image Yolo::cvimg(const cv::Mat &image)

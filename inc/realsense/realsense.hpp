@@ -1,6 +1,6 @@
 #ifndef REALSENSE_HPP
 #define REALSENSE_HPP
-
+#pragma once
 #include <librealsense2/rs.hpp>
 #include <librealsense2/rsutil.h>
 
@@ -22,48 +22,18 @@
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
 #include <pcl/common/eigen.h>
-#include <Eigen/Dense>
 
-// 配置文件
-#include <yaml-cpp/yaml.h>
 
 #include <iostream>
 #include <string>
 #include <memory>
 #include <unistd.h>
 
-#include "yolo.hpp"
-#include "main.hpp"
-#include "vision_draw.hpp"
-
-#define COUT_RED_START std::cout << "\033[1;31m";
-#define COUT_GREEN_START std::cout << "\033[1;32m";
-#define COUT_YELLOW_START std::cout << "\033[1;33m";
-#define COUT_BLUE_START std::cout << "\033[1;34m";
-#define COUT_PURPLE_START std::cout << "\033[1;35m";
-#define COUT_CYAN_START std::cout << "\033[1;36m";
-#define COUT_WHITE_START std::cout << "\033[1;37m";
-#define COUT_COLOR_END std::cout << "\033[0m";
-
-
-// 定义相机模式
-enum class CameraMode
-{
-    DEFAULT,      // 彩色 + 深度
-    INFRARED_ONLY // 左右红外
-};
-
-struct CameraParams
-{
-    int width, height, fps;// 相机分辨率和帧率
-    CameraMode mode = CameraMode::DEFAULT;// 相机模式
-    Eigen::Matrix3f rotation;// 3x3 旋转矩阵
-    Eigen::Vector3f translation;// 3x1 平移向量.即相机坐标系到机器人坐标系的平移
-    float min_dist; // 最小距离阈值
-    float max_dist; // 最大距离阈值
-
-   static CameraParams LoadFromFile(const std::string& filepath);
-};
+#include "common/yolo.hpp"
+#include "utils/vision_draw.hpp"
+#include "common/colors.hpp"
+#include "utils/utils.hpp"
+#include "common/camera_params.hpp"
 
 
 class RealSense

@@ -3,7 +3,7 @@ camera:
   width: 1280
   height: 720
   fps: 30
-  mode:"default" # 相机模式，可选值："default", "infrared"
+  mode: "default" # 相机模式，可选值："default", "infrared"
 
 # 坐标变换配置
 transform:

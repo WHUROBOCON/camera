@@ -4,7 +4,7 @@
 #include <vector>
 #include <set>
 #include <string>
-#include "yolo.hpp" //yolo::Box / BoxArray
+#include "common/yolo.hpp" //yolo::Box / BoxArray
 
 // Block 枚举（最终语义）
 enum class BlockClass

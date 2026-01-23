@@ -1,12 +1,11 @@
-#include "main.hpp"
-#include "realsense.hpp"
-#include "myinfer.hpp"
+#include "realsense/realsense.hpp"
+#include "utils/myinfer.hpp"
+#include "utils/utils.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/visualization/pcl_visualizer.h>
 
 #include <iostream>
 
@@ -15,12 +14,12 @@ int main()
     try
     {
         // 1) 初始化 (default：彩色+深度）
-        RealSense myrealsense = RealSense::Create_FromFile("/home/li/camera_ws/src/camera_bridge/RealsenseConfig.yaml");
+        RealSense myrealsense = RealSense::Create_FromFile("config/RealsenseConfig.yaml");
 
         // 初始化Yolov8
         Yolo yolo;
 
-        std::string engine_path = "/home/li/camera_ws/src/camera_bridge/workspace/model_generate/yolo_dete_1_20/weights/best.engine"; // 引擎路径
+        std::string engine_path = "workspace/model_generate/yolo_dete_1_20/weights/best.engine"; // 引擎路径
         yolo.Yolov8_Seg_Enable(engine_path);
         // yolo.Yolov8_Enable(engine_path);  //检测引擎
         yolo::BoxArray detections;

@@ -74,9 +74,9 @@ set(COMMON_LIBS
     yaml-cpp
 )
 #---realsense---
-add_executable(rs_viewer src/rs_detect.cpp src/realsense.cpp
-    src/vision_draw.cpp
-    src/myinfer.cpp src/yolo/yolo.cu)
+add_executable(rs_viewer src/common/camera_params.cpp src/realsense/rs_detect.cpp src/realsense/realsense.cpp
+    src/utils/vision_draw.cpp
+    src/utils/myinfer.cpp src/yolo/yolo.cu)
 target_link_libraries(rs_viewer PRIVATE
 
     realsense2::realsense2
@@ -85,8 +85,8 @@ target_link_libraries(rs_viewer PRIVATE
 
 
 #---K4A---
-add_executable(k4a_detect src/k4a_detect.cpp src/camera_k4a.cpp
-    src/myinfer.cpp src/vision_draw.cpp src/block_recognizer.cpp src/yolo/yolo.cu)
+add_executable(k4a_detect src/common/camera_params.cpp src/k4a/k4a_detect.cpp src/k4a/camera_k4a.cpp
+    src/utils/myinfer.cpp src/utils/vision_draw.cpp src/utils/block_recognizer.cpp src/yolo/yolo.cu)
 target_link_libraries(k4a_detect PRIVATE
 
     k4a::k4a
@@ -96,14 +96,14 @@ target_link_libraries(k4a_detect PRIVATE
 
 
 #--k4a_record_videos--
-add_executable(record_videos src/k4a_capture_videos.cpp src/camera_k4a.cpp src/vision_draw.cpp)
+add_executable(record_videos src/common/camera_params.cpp src/k4a/k4a_capture_videos.cpp  src/k4a/camera_k4a.cpp src/utils/vision_draw.cpp)
 target_link_libraries(record_videos PRIVATE
 
     k4a::k4a
     ${COMMON_LIBS}
 )
 #--k4a_capture_pictures--
-add_executable(capture_images src/k4a_capture_images.cpp src/camera_k4a.cpp src/vision_draw.cpp)
+add_executable(capture_images src/common/camera_params.cpp src/k4a/k4a_capture_images.cpp src/k4a/camera_k4a.cpp src/utils/vision_draw.cpp)
 target_link_libraries(capture_images PRIVATE
 
     k4a::k4a
@@ -114,13 +114,12 @@ target_link_libraries(capture_images PRIVATE
 
 #             ROS可执行文件（仅在ROS下编译）
 if(BUILD_WITH_ROS)
-    #---k4a_viewer_ros---
-    add_executable(k4a_detect_ros src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp
-        src/vision_draw.cpp src/block_recognizer.cpp src/yolo/yolo.cu)
+    #---k4a_detect_ros---
+    add_executable(k4a_detect_ros src/common/camera_params.cpp src/k4a/k4a_detect.cpp src/k4a/camera_k4a.cpp src/utils/myinfer.cpp
+        src/utils/vision_draw.cpp src/utils/block_recognizer.cpp src/yolo/yolo.cu)
     target_compile_definitions(k4a_detect_ros PRIVATE BUILD_WITH_ROS)
     target_include_directories(k4a_detect_ros PRIVATE
-        ${catkin_INCLUDE_DIRS}
-        inc
+        ${catkin_INCLUDE_DIRS}/inc
     )
     target_link_libraries(k4a_detect_ros PRIVATE
         ${catkin_LIBRARIES}
@@ -133,6 +132,7 @@ if(BUILD_WITH_ROS)
         yolo
         pthread
         -lffi
+        yaml-cpp
     )
 
     install(TARGETS k4a_detect_ros
@@ -140,11 +140,12 @@ if(BUILD_WITH_ROS)
     )
 
     #---rs_viewer_ros---
-    add_executable(rs_viewer_ros src/rs_detect.cpp src/realsense.cpp src/myinfer.cpp src/yolo/yolo.cu
-        src/vision_draw.cpp
+    add_executable(rs_viewer_ros src/common/camera_params.cpp src/realsense/rs_detect.cpp src/realsense/realsense.cpp
+        src/utils/myinfer.cpp src/yolo/yolo.cu
+        src/utils/vision_draw.cpp
     )
     target_compile_definitions(rs_viewer_ros PRIVATE BUILD_WITH_ROS)
-    target_include_directories(rs_viewer_ros PRIVATE ${catkin_INCLUDE_DIRS} inc)
+    target_include_directories(rs_viewer_ros PRIVATE ${catkin_INCLUDE_DIRS}/inc)
     target_link_libraries(rs_viewer_ros PRIVATE
         ${catkin_LIBRARIES}
         ${OpenCV_LIBS}

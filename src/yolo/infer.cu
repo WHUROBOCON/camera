@@ -7,7 +7,7 @@
 #include <sstream>
 #include <unordered_map>
 
-#include "../../inc/infer.hpp"
+#include "utils/infer.hpp"
 
 namespace trt {
 

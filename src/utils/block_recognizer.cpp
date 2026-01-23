@@ -1,4 +1,4 @@
-#include "block_recognizer.hpp"
+#include "utils/block_recognizer.hpp"
 
 // 核心识别逻辑：处理所有blocks
 FinalBlockResults BlockRecognizer::recognize(const yolo::BoxArray& dets) const {

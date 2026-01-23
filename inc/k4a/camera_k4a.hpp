@@ -1,8 +1,11 @@
 #ifndef CAMREA_K4A_HPP
 #define CAMREA_K4A_HPP
-#include "main.hpp"
-#include "yolo.hpp"
-#include "vision_draw.hpp"
+
+#include "common/yolo.hpp"
+#include "utils/vision_draw.hpp"
+#include "common/colors.hpp"
+#include "utils/utils.hpp"
+#include "common/camera_params.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -27,17 +30,7 @@
 #include <memory>
 #include <string>
 
-#define COUT_RED_START std::cout << "\033[1;31m";
-#define COUT_GREEN_START std::cout << "\033[1;32m";
-#define COUT_YELLOW_START std::cout << "\033[1;33m";
-#define COUT_BLUE_START std::cout << "\033[1;34m";
-#define COUT_PURPLE_START std::cout << "\033[1;35m";
-#define COUT_CYAN_START std::cout << "\033[1;36m";
-#define COUT_WHITE_START std::cout << "\033[1;37m";
-#define COUT_COLOR_END std::cout << "\033[0m";
 
-#undef MIN_DISTANCE
-#define MIN_DISTANCE 2.0
 
 struct CameraIntrinsics
 {
@@ -60,7 +53,7 @@ private:
     k4a_device_configuration_t config;
     k4a::capture capture;
 
-    // 标定 & 坐标变换
+    // 标定&转换
     k4a::calibration k4aCalibration;
     k4a::transformation k4aTransformation;
 
@@ -74,11 +67,29 @@ private:
     k4a::image image_k4a_color, image_k4a_depth, image_k4a_infrared;
     k4a::image image_k4a_depth_to_color;
 
-public:
-    bool Open();
+    // 存储相机的配置数据
+    CameraParams m_params;
 
+    // 私有构造函数：内部调用 Configuration()
+    K4a(const CameraParams& params);
+
+public:
+    // 工厂函数：通过路径加载配置文件
+    static K4a Create_FromFile(const std::string& config_path);
+
+    // 移动语义
+    K4a(K4a&& other) noexcept = default;
+    K4a& operator=(K4a&& other) noexcept = default;
+    
+    // 禁用复制
+    K4a(const K4a&) = delete;
+    K4a& operator=(const K4a&) = delete;
+
+    // 设备初始化
+    bool Open();
     void Installed_Count();
 
+    // 配置K4a对象
     void Configuration();
 
     CameraIntrinsics get_color_intrinsics() const;
@@ -113,14 +124,6 @@ public:
 
     void capture_images(const std::string &output_path_prefix,
                         const std::string &obj);
-    K4a()
-    {
-        Installed_Count();
-        if (Open())
-        {
-            Configuration();
-        }
-    }
 
     ~K4a()
     {

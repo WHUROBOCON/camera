@@ -1,13 +1,13 @@
 #pragma once
 #include <iostream>
 #include <cmath>
-#include <opencv2/opencv.hpp>
-#include "block_recognizer.hpp"
 
-// 定义平面滤波的关键参数（可根据实际场景调整）
-#define DEPTH_DIFF_THRESHOLD 0.05f // 平面内相邻像素的最大深度差（米，越小滤波越严）
-#define MAX_DEPTH 4.0f             // 最大有效深度
-#define MIN_DEPTH 0.01f            // 最小有效深度（避免0值和极浅噪声）
+#include <opencv2/opencv.hpp>
+// 点云显示相关头文件
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+
+#include "utils/block_recognizer.hpp"
 
 struct BoundingBox3D
 {

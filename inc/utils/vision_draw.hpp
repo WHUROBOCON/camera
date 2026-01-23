@@ -1,7 +1,9 @@
 #pragma once
 #include <opencv2/opencv.hpp>
-#include "block_recognizer.hpp"
-#include "yolo.hpp"
+
+#include "utils/block_recognizer.hpp"
+#include "common/yolo.hpp"
+
 #include <string>
 namespace vision
 {

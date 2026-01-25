@@ -39,7 +39,7 @@ int main(
     try
     {
         // 初始化 - 使用绝对路径或从环境变量获取
-        std::string config_path = "/home/li/camera_ws/src/camera_bridge/config/AzureKinectSDKConfig.yaml";
+        std::string config_path = "/home/li/camera_ws/src/camera_bridge/config/K4AConfig.yaml";
         K4a k4a_device = K4a::Create_FromFile(config_path);
         Yolo yolo;
         BlockRecognizer block_recognizer;
@@ -57,6 +57,7 @@ int main(
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
             new pcl::PointCloud<pcl::PointXYZ>);
+        // 点云可视化初始化
         pcl::visualization::PCLVisualizer::Ptr viewer(
             new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
 

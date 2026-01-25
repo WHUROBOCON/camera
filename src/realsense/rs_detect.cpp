@@ -14,7 +14,7 @@ int main()
     try
     {
         // 1) 初始化 (default：彩色+深度）
-        RealSense myrealsense = RealSense::Create_FromFile("config/RealsenseConfig.yaml");
+        RealSense myrealsense = RealSense::Create_FromFile("config/RsConfig.yaml");
 
         // 初始化Yolov8
         Yolo yolo;

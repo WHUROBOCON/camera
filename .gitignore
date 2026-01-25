@@ -7,3 +7,5 @@ workspace/videos/
 workspace/labels_json/
 workspace/dataset_yolo_dete/
 workspace/images/
+.gitignore
+.vscode/

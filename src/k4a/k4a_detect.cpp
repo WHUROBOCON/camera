@@ -1,7 +1,6 @@
 #include <iostream>
 #include <csignal>
 
-
 #include "utils/block_recognizer.hpp"
 #include "k4a/camera_k4a.hpp"
 #include "utils/myinfer.hpp"
@@ -49,7 +48,7 @@ int main(
             "yolo_dete_1_20/weights/best.engine";
 
         yolo.Yolov8_Enable(engine_path);
-        
+
         // Set confidence threshold to 0.5 (50%) and NMS threshold to 0.5
         yolo.Set_Confidence_Threshold(0.5f, 0.5f);
 
@@ -58,11 +57,11 @@ int main(
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
             new pcl::PointCloud<pcl::PointXYZ>);
         // 点云可视化初始化
-        pcl::visualization::PCLVisualizer::Ptr viewer(
-            new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
+        // pcl::visualization::PCLVisualizer::Ptr viewer(
+        //     new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
 
-        viewer->setBackgroundColor(0, 0, 0);
-        viewer->addCoordinateSystem(0.2);
+        // viewer->setBackgroundColor(0, 0, 0);
+        // viewer->addCoordinateSystem(0.2);
 
         bool first_cloud = true;
         int frame_id = 0;
@@ -106,7 +105,7 @@ int main(
                         k4a_device.Value_Block_to_Pcl(cloud, depth_image, results);
                     const char *class_name = block_class_name(results.block_class);
 
-                    if (frame_id++ % 5 == 0 && bbox.center.x !=0 && bbox.center.y !=0 && bbox.center.z !=0)
+                    if (frame_id++ % 5 == 0 )
                     {
                         std::cout << "Block Class: " << class_name
                                   << " Confidence: " << results.confidence
@@ -120,8 +119,7 @@ int main(
             
 
 #ifdef BUILD_WITH_ROS
-                if(bbox.center.x !=0 && bbox.center.y !=0 && bbox.center.z !=0) 
-                {
+
                     std_msgs::String msg;
                     std::stringstream ss;
                     ss << bbox.cls_ID << ","
@@ -131,29 +129,50 @@ int main(
                        << bbox.principal_dir[0]; // yaw
                     msg.data = ss.str();
                     target_pub.publish(msg);
-                }
-              
+
 #endif
-                
-            
-                // PCL 显示
-                if (first_cloud)
-                {
-                    viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
-                    viewer->resetCameraViewpoint("target_cloud");
-                    first_cloud = false;
-                }
-                else
-                {
-                    viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+
+                    // // PCL 显示
+                    // if (first_cloud)
+                    // {
+                    //     viewer->addPointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                    //     viewer->resetCameraViewpoint("target_cloud");
+                    //     first_cloud = false;
+                    // }
+                    // else
+                    // {
+                    //     viewer->updatePointCloud<pcl::PointXYZ>(cloud, "target_cloud");
+                    // }
                 }
             }
-        }
+            else
+            {
+#ifdef BUILD_WITH_ROS
+                // 当没有检测到任何 block 时，发布全为 0 的占位消息，方便下游更新状态
+                std_msgs::String msg;
+                std::stringstream ss;
+                ss << 0 << ","   // cls_ID (UNKNOWN)
+                   << 0 << ","   // center.x
+                   << 0 << ","   // center.y
+                   << 0 << ","   // center.z
+                   << 0;          // yaw
+                msg.data = ss.str();
+                target_pub.publish(msg);
+#else
+                // 非 ROS 编译时，打印一条全 0 的占位信息，保持行为一致
+                if (frame_id++ % 5 == 0)
+                {
+                    std::cout << "Block Class: UNKNOWN"
+                              << " Confidence: 0"
+                              << " Center: [0, 0, 0, 0]\n";
+                }
+#endif
+            }
 
             // cv::imshow("Final Block", block_vis);
             // cv::imshow("depth_iamge",depth_image);
 
-            viewer->spinOnce(10);
+            // viewer->spinOnce(10);
 
             char key = (char)cv::waitKey(10);
             if (key == 'q' || key == 27)
@@ -162,7 +181,7 @@ int main(
 #ifdef BUILD_WITH_ROS
             ros::spinOnce();
 #endif
-            }
+        }
 
         return EXIT_SUCCESS;
     }
